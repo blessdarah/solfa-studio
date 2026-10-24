@@ -21,7 +21,7 @@ class ScoreFactory extends Factory
     {
         return [
             'owner_id' => User::factory(),
-            'title' => ucwords(fake()->words(2, true)),
+            'title' => rtrim(ucwords(fake()->sentence(2)), '.'),
             'composer' => fake()->name(),
             'doh' => fake()->randomElement(Score::DOH_KEYS),
             'origin' => ScoreOrigin::Composed,

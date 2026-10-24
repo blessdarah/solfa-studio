@@ -177,7 +177,9 @@ final readonly class ScoreDocument implements JsonSerializable
      */
     public function toArray(): array
     {
-        $out = fn (array $items) => array_map(fn (JsonSerializable $i) => (array) $i->jsonSerialize(), $items);
+        $out = fn (array $items): array => array_values(
+            array_map(fn (JsonSerializable $i): array => (array) $i->jsonSerialize(), $items),
+        );
 
         return [
             'schema' => self::SCHEMA,

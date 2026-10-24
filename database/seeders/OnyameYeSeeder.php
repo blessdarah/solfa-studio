@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Enums\ScoreOrigin;
-use App\Models\Score;
 use App\Models\User;
 use App\Music\Bar;
 use App\Music\MapEvent;
@@ -25,8 +24,11 @@ use LogicException;
 
 /**
  * The demo piece from the designs: "Onyame Ye", Doh is E♭, 16 bars of
- * highlife, slowing to ♩ = 72 in 3/4 from bar 13. Bars 9–10 of the soprano
- * and alto are filled in, with the dynamics, $ sign and Fine.
+ * highlife, slowing to ♩ = 72 in 3/4 from bar 13.
+ *
+ * The chorus bars 5–12 carry the soprano and alto lines, words and marks
+ * shown in W1. Soprano is finished (16/16), alto is mid-write (9/16, bar 10
+ * on the cursor), tenor is empty and bass has its first four bars.
  */
 class OnyameYeSeeder extends Seeder
 {
@@ -46,38 +48,84 @@ class OnyameYeSeeder extends Seeder
             style: 'highlife',
         );
 
-        // Soprano 9: d :r ¦ m :f   ·   10: s :–.l ¦ s :m
-        $document = $this->fill($document, Voice::Soprano, [
-            9 => [[Pitch::Doh, 0, 0, 1], [Pitch::Ray, 0, 1, 1], [Pitch::Me, 0, 2, 1], [Pitch::Fah, 0, 3, 1]],
-            10 => [[Pitch::Soh, 0, 0, 1.5], [Pitch::Lah, 0, 1.5, 0.5], [Pitch::Soh, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
-        ]);
+        $lines = [
+            'S' => [
+                1 => [[Pitch::Doh, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Ray, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
+                2 => [[Pitch::Fah, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Ray, 0, 2, 2]],
+                3 => [[Pitch::Me, 0, 0, 1], [Pitch::Soh, 0, 1, 1], [Pitch::Lah, 0, 2, 1], [Pitch::Soh, 0, 3, 1]],
+                4 => [[Pitch::Fah, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Ray, 0, 2, 2]],
+                5 => [[Pitch::Doh, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Ray, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
+                6 => [[Pitch::Fah, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Ray, 0, 2, 2]],
+                7 => [[Pitch::Me, 0, 0, 1], [Pitch::Soh, 0, 1, 1], [Pitch::Lah, 0, 2, 1], [Pitch::Soh, 0, 3, 1]],
+                8 => [[Pitch::Fah, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Ray, 0, 2, 2]],
+                9 => [[Pitch::Doh, 0, 0, 1], [Pitch::Ray, 0, 1, 1], [Pitch::Me, 0, 2, 1], [Pitch::Fah, 0, 3, 1]],
+                10 => [[Pitch::Soh, 0, 0, 1.5], [Pitch::Lah, 0, 1.5, 0.5], [Pitch::Soh, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
+                11 => [[Pitch::Ray, 0, 0, 1], [Pitch::Me, 0, 1, 0.5], [Pitch::Ray, 0, 1.5, 0.5], [Pitch::Doh, 0, 2, 2]],
+                12 => [[Pitch::Me, 0, 0, 1], [Pitch::Fah, 0, 1, 1], [Pitch::Soh, 0, 2, 2]],
+                13 => [[Pitch::Doh, 0, 0, 1.5], [Pitch::Ray, 0, 1.5, 1.5]],
+                14 => [[Pitch::Me, 0, 0, 1.5], [Pitch::Fah, 0, 1.5, 1.5]],
+                15 => [[Pitch::Soh, 0, 0, 3]],
+                16 => [[Pitch::Doh, 0, 0, 3]],
+            ],
+            'A' => [
+                1 => [[Pitch::Soh, -1, 0, 1], [Pitch::Soh, -1, 1, 1], [Pitch::Te, -1, 2, 1], [Pitch::Doh, 0, 3, 1]],
+                2 => [[Pitch::Doh, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Te, -1, 2, 2]],
+                3 => [[Pitch::Doh, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Fah, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
+                4 => [[Pitch::Ray, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Te, -1, 2, 2]],
+                5 => [[Pitch::Soh, -1, 0, 1], [Pitch::Soh, -1, 1, 1], [Pitch::Te, -1, 2, 1], [Pitch::Doh, 0, 3, 1]],
+                6 => [[Pitch::Doh, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Te, -1, 2, 2]],
+                7 => [[Pitch::Doh, 0, 0, 1], [Pitch::Me, 0, 1, 1], [Pitch::Fah, 0, 2, 1], [Pitch::Me, 0, 3, 1]],
+                8 => [[Pitch::Ray, 0, 0, 1], [Pitch::Doh, 0, 1, 1], [Pitch::Te, -1, 2, 2]],
+                9 => [[Pitch::Soh, -1, 0, 1], [Pitch::Te, -1, 1, 1], [Pitch::Doh, 0, 2, 1], [Pitch::Ray, 0, 3, 1]],
+                10 => [[Pitch::Me, 0, 0, 1.5], [Pitch::Fah, 0, 1.5, 0.5], [Pitch::Me, 0, 2, 1]],
+            ],
+            'B' => [
+                1 => [[Pitch::Doh, -1, 0, 4]],
+                2 => [[Pitch::Te, -1, 0, 4]],
+                3 => [[Pitch::Doh, -1, 0, 4]],
+                4 => [[Pitch::Soh, -1, 0, 4]],
+            ],
+        ];
 
-        // Alto 9: s₁:t₁ ¦ d :r   ·   10: m :–.f ¦ m :   (beat 4 still to write)
-        $document = $this->fill($document, Voice::Alto, [
-            9 => [[Pitch::Soh, -1, 0, 1], [Pitch::Te, -1, 1, 1], [Pitch::Doh, 0, 2, 1], [Pitch::Ray, 0, 3, 1]],
-            10 => [[Pitch::Me, 0, 0, 1.5], [Pitch::Fah, 0, 1.5, 0.5], [Pitch::Me, 0, 2, 1]],
-        ], done: [9]);
+        $doneS = range(1, 16);
+        $doneA = range(1, 9);
+        $doneB = range(1, 4);
+
+        $document = $this->fill($document, Voice::Soprano, $lines['S'], $doneS);
+        $document = $this->fill($document, Voice::Alto, $lines['A'], $doneA);
+        $document = $this->fill($document, Voice::Bass, $lines['B'], $doneB);
+
+        $words = [
+            5 => ['Me' => SyllableJoin::Split, 'da' => SyllableJoin::Split, 'woa' => SyllableJoin::Split, 'se' => SyllableJoin::None],
+            6 => ['Nyan' => SyllableJoin::Split, 'ko' => SyllableJoin::Split, 'pɔn' => SyllableJoin::None],
+            7 => ['wo' => SyllableJoin::None, 'dɔ' => SyllableJoin::None, 'no' => SyllableJoin::None, 'so' => SyllableJoin::None],
+            8 => ['ma' => SyllableJoin::None, 'me' => SyllableJoin::None, 'nkwa' => SyllableJoin::None],
+            9 => ['O' => SyllableJoin::Split, 'nya' => SyllableJoin::Split, 'me' => SyllableJoin::None, 'ye' => SyllableJoin::None],
+            10 => ['ɔ' => SyllableJoin::Split, 'dɔ' => SyllableJoin::None, 'me' => SyllableJoin::None, 'o' => SyllableJoin::None],
+            11 => ['ɔ' => SyllableJoin::Split, 'dɔ' => SyllableJoin::None, 'me' => SyllableJoin::None, 'daa' => SyllableJoin::None],
+            12 => ['Ye' => SyllableJoin::Split, 'su' => SyllableJoin::None, 'ne' => SyllableJoin::None, 'He' => SyllableJoin::Split, 'ne2' => SyllableJoin::None],
+        ];
+
+        $syllables = [];
+        foreach ($words as $bar => $line) {
+            $beat = 0.0;
+
+            foreach ($line as $text => $join) {
+                $syllables[] = new Syllable(Voice::Soprano, $bar, $beat, $text, $join);
+                $beat += 1.0;
+            }
+        }
 
         $document = new ScoreDocument(
             bars: $document->bars,
             map: $document->map,
             parts: $document->parts,
-            verses: [
-                new Verse('v1', 'Verse 1', 'tw', [
-                    new Syllable(Voice::Soprano, 9, 0, 'O', SyllableJoin::Split),
-                    new Syllable(Voice::Soprano, 9, 1, 'nya', SyllableJoin::Split),
-                    new Syllable(Voice::Soprano, 9, 2, 'me'),
-                    new Syllable(Voice::Soprano, 9, 3, 'ye'),
-                    new Syllable(Voice::Soprano, 10, 0, 'ɔ', SyllableJoin::Split),
-                    new Syllable(Voice::Soprano, 10, 1.5, 'dɔ'),
-                    new Syllable(Voice::Soprano, 10, 2, 'me'),
-                    new Syllable(Voice::Soprano, 10, 3, 'o'),
-                ]),
-            ],
+            verses: [new Verse('v1', 'Verse 1', 'tw', $syllables)],
             marks: [
                 new Mark(MarkKind::Dynamic, 'mp', new Position(5)),
                 new Mark(MarkKind::Text, 'gently', new Position(5)),
                 new Mark(MarkKind::Hairpin, 'cresc', new Position(7), new Position(8, 4)),
+                new Mark(MarkKind::Dynamic, 'f', new Position(8, 3)),
                 new Mark(MarkKind::Dynamic, 'f', new Position(9)),
                 new Mark(MarkKind::Nav, '$', new Position(9)),
                 new Mark(MarkKind::Text, 'joyfully', new Position(9)),
@@ -119,7 +167,9 @@ class OnyameYeSeeder extends Seeder
                 $bars[$bar->no] ?? [],
             );
 
-            return isset($bars[$bar->no]) ? new Bar($bar->no, $notes, in_array($bar->no, $done, true)) : $bar;
+            return isset($bars[$bar->no])
+                ? new Bar($bar->no, $notes, in_array($bar->no, $done, true))
+                : $bar;
         }, $part->bars);
 
         return $document->withPart(new Part($part->id, $part->name, $newBars));

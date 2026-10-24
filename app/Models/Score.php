@@ -185,6 +185,19 @@ class Score extends Model
     }
 
     /**
+     * The most recent photograph session. Its unresolved flags are the
+     * "notes to check" on the dashboard.
+     *
+     * @return HasOne<Scan, $this>
+     */
+    public function latestScan(): HasOne
+    {
+        return $this->hasOne(Scan::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    /**
      * Every uncertain note from every scan — "7 notes to check".
      *
      * @return HasManyThrough<ScanFlag, Scan, $this>

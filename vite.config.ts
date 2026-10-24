@@ -13,7 +13,13 @@ export default defineConfig({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
             refresh: true,
             fonts: [
-                bunny('Instrument Sans', {
+                bunny('Inter Tight', {
+                    weights: [500, 600, 700, 800],
+                }),
+                bunny('Inter', {
+                    weights: [400, 500, 600],
+                }),
+                bunny('JetBrains Mono', {
                     weights: [400, 500, 600],
                 }),
             ],

@@ -69,7 +69,7 @@ final readonly class Bar implements JsonSerializable
     {
         return [
             'no' => $this->no,
-            'notes' => array_map(fn(Note $n) => $n->toArray(), $this->notes),
+            'notes' => array_map(fn (Note $n) => $n->toArray(), $this->notes),
             'done' => $this->done,
         ];
     }

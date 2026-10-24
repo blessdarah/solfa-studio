@@ -11,7 +11,7 @@ use InvalidArgumentException;
  * Turns the `document` jsonb column into a ScoreDocument and back.
  * Writing an array validates it first, so bad music never reaches the database.
  *
- * @implements CastsAttributes<ScoreDocument, ScoreDocument|array<string, mixed>>
+ * @implements CastsAttributes<ScoreDocument, mixed>
  */
 class AsScoreDocument implements CastsAttributes
 {

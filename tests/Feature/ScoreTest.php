@@ -139,7 +139,7 @@ class ScoreTest extends TestCase
         $this->assertSame('Onyame Ye', $score->title);
         $this->assertSame('Eb', $score->doh);
         $this->assertSame(3, $score->document->beatsInBar(13));
-        $this->assertSame(1, $score->document->part(Voice::Alto)?->doneCount());
-        $this->assertCount(10, $score->document->marks);
+        $this->assertSame(9, $score->document->part(Voice::Alto)?->doneCount());
+        $this->assertCount(11, $score->document->marks);
     }
 }
