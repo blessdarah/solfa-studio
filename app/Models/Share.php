@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 
 /**
@@ -66,6 +67,39 @@ class Share extends Model
         }
 
         return $this->score->versions()->where('version', $this->version)->firstOrFail()->document;
+    }
+
+    /**
+     * Record that a signed-in person opened this link, so the score shows
+     * under their "Shared with me". Returns true the first time.
+     */
+    public function openedBy(User $user): bool
+    {
+        if ($user->id === $this->score->owner_id) {
+            return false;
+        }
+
+        $existing = $this->recipients()->whereKey($user->id)->exists();
+
+        if ($existing) {
+            $this->recipients()->updateExistingPivot($user->id, ['last_opened_at' => now()]);
+
+            return false;
+        }
+
+        $this->recipients()->attach($user->id, ['first_opened_at' => now(), 'last_opened_at' => now()]);
+
+        return true;
+    }
+
+    /**
+     * People who have opened this link while signed in.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function recipients(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withPivot(['first_opened_at', 'last_opened_at']);
     }
 
     /**

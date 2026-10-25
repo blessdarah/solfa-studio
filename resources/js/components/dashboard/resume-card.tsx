@@ -1,85 +1,70 @@
 import { Link } from '@inertiajs/react';
 import { ArrowRightIcon } from '@/components/icons';
-import { cn } from '@/lib/utils';
+import { formatBar, keyLabel, timeLabel } from '@/lib/music';
 import type { ScoreSummary } from '@/types';
 
-export function ResumeCard({
-    score,
-    compact = false,
-}: {
-    score: ScoreSummary;
-    compact?: boolean;
-}) {
-    const isReview = score.notes_to_check > 0;
-    const progress = score.read_percent ?? score.completion;
-    const progressLabel =
-        score.read_percent !== null
-            ? `${score.read_percent}% read`
-            : `${score.completion}% complete`;
+/**
+ * The card at the top of the right rail: the score to pick up again,
+ * with a sketch of its first bars and how far it has got.
+ */
+export function ResumeCard({ score }: { score: ScoreSummary }) {
+    const toCheck = score.notes_to_check;
+    const percent = score.read_percent ?? score.completion;
+    const lines: string[] = [];
+
+    for (let i = 0; i < score.preview.length; i += 2) {
+        lines.push(
+            score.preview
+                .slice(i, i + 2)
+                .map((bar) => formatBar(bar.notes, bar.beats))
+                .join(' | '),
+        );
+    }
 
     return (
-        <div className={cn('rounded-card bg-copy p-[18px]', compact && 'p-4')}>
-            <div className="flex items-center justify-between gap-3">
-                <span
-                    className={cn(
-                        'inline-flex h-6 items-center rounded-full px-2.5 text-[8.5px] font-semibold tracking-[0.1em] uppercase',
-                        isReview
-                            ? 'bg-marker text-ink'
-                            : 'bg-paper text-pencil',
-                    )}
-                >
-                    {isReview
-                        ? `${score.notes_to_check} notes to check`
-                        : 'Recently edited'}
+        <div className="flex shrink-0 flex-col rounded-lg bg-copy p-4.5">
+            <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center rounded-[4px] bg-marker px-1.75 py-1.25">
+                    <span className="text-[9.5px] leading-3 font-bold tracking-[0.06em] text-ink">
+                        {toCheck > 0 ? `${toCheck} NOTES TO CHECK` : 'KEEP WRITING'}
+                    </span>
                 </span>
-                <span className="shrink-0 text-[10px] text-pencil">
-                    {score.updated_human}
-                </span>
+                <span className="text-[11px] leading-3.5 text-pencil">{score.updated_human}</span>
             </div>
 
-            <Link
-                href={`/scores/${score.id}`}
-                className="group mt-3 block rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-            >
-                <h3 className="font-display text-[22px] leading-[1.06] font-bold tracking-[-0.035em] text-ink decoration-rule underline-offset-4 group-hover:underline">
-                    {score.title}
-                </h3>
-            </Link>
+            <div className="truncate pt-3 font-display text-[22px] leading-6.5 font-bold tracking-[-0.02em] text-ink">
+                {score.title}
+            </div>
+            <div className="truncate pt-1 text-[12px] leading-4 text-pencil">
+                {score.composer ?? 'Unknown composer'} · Doh is {keyLabel(score.doh)} · {timeLabel(score.beats)}
+            </div>
 
-            <p className="mt-1 text-[11.5px] leading-4 text-pencil">
-                {score.composer ?? 'Unknown composer'} · Doh is {score.doh} ·
-                ♩ = {score.bpm}
-            </p>
-
-            {score.solfa_preview && (
-                <p className="mt-3 font-solfa text-[11px] leading-[1.75] break-words text-ink/80">
-                    {score.solfa_preview}
-                </p>
+            {lines.length > 0 && (
+                <div className="pt-3.5 font-solfa text-[12px] leading-5 tracking-[0.01em] whitespace-pre text-ink">
+                    {lines.join('\n')}
+                </div>
             )}
 
-            <div className="mt-4">
-                <div className="flex items-center justify-between text-[10px] text-pencil">
-                    <span>{progressLabel}</span>
-                    <span>{score.bars} bars</span>
+            <div className="flex items-center gap-2.5 pt-3">
+                <div className="h-1 grow basis-0 rounded-full bg-rule">
+                    <div className="h-1 rounded-full bg-ink" style={{ width: `${Math.max(2, percent)}%` }} />
                 </div>
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-paper">
-                    <div
-                        className="h-full rounded-full bg-ink"
-                        style={{ width: `${Math.max(3, progress)}%` }}
-                    />
-                </div>
+                <span className="text-[11px] leading-3.5 text-pencil">
+                    {percent}% {score.read_percent !== null ? 'read' : 'written'}
+                </span>
             </div>
 
-            <Link
-                href={`/scores/${score.id}`}
-                className={cn(
-                    'mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-ink text-[12px] font-semibold text-paper outline-none transition hover:bg-ink/85 focus-visible:ring-2 focus-visible:ring-ink/20 focus-visible:ring-offset-2 focus-visible:ring-offset-copy',
-                    compact ? 'w-full sm:w-auto sm:px-5' : 'w-full',
-                )}
-            >
-                {isReview ? `Review ${score.notes_to_check} notes` : 'Open score'}
-                <ArrowRightIcon className="h-3 w-3" />
-            </Link>
+            <div className="pt-4">
+                <Link
+                    href={`/scores/${score.id}`}
+                    className="flex h-9 items-center justify-center gap-1.75 rounded-full bg-ink text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 focus-visible:ring-offset-copy"
+                >
+                    <span className="text-[13px] leading-4.5 font-semibold">
+                        {toCheck > 0 ? `Review ${toCheck} notes` : 'Continue writing'}
+                    </span>
+                    <ArrowRightIcon size={12} strokeWidth={1.7} />
+                </Link>
+            </div>
         </div>
     );
 }

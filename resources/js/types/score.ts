@@ -55,11 +55,14 @@ export type Position = { bar: number; beat: number };
 
 export type MarkKind = 'dyn' | 'hairpin' | 'nav' | 'text';
 
-export type Mark =
-    | { kind: 'dyn'; value: 'pp' | 'p' | 'mp' | 'mf' | 'f' | 'ff'; at: Position; to: null; parts: Voice[] | null }
-    | { kind: 'hairpin'; value: 'cresc' | 'dim'; at: Position; to: Position; parts: Voice[] | null }
-    | { kind: 'nav'; value: '$' | 'DS' | 'DC' | 'Fine'; at: Position; to: null; parts: Voice[] | null }
-    | { kind: 'text'; value: string; at: Position; to: null; parts: Voice[] | null };
+export type Mark = {
+    kind: MarkKind;
+    /** dyn: pp p mp mf f ff · hairpin: cresc dim · nav: $ DS DC Fine · text: anything */
+    value: string;
+    at: Position;
+    to: Position | null;
+    parts: Voice[] | null;
+};
 
 export type SyllableJoin = 'none' | 'split' | 'hold';
 
@@ -88,6 +91,9 @@ export type Section = {
     repeat: number;
 };
 
+/** Which voices the words print under. */
+export type WordsUnder = 'SA' | 'TB' | 'each';
+
 export type ScoreDocument = {
     schema: 1;
     bars: number;
@@ -99,70 +105,25 @@ export type ScoreDocument = {
     marks: Mark[];
     sections: Section[];
     footnotes: string[];
+    words_under: WordsUnder;
 };
 
-export type DohKey = 'C' | 'C#' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+export type DohKey =
+    | 'C'
+    | 'C#'
+    | 'Db'
+    | 'D'
+    | 'Eb'
+    | 'E'
+    | 'F'
+    | 'F#'
+    | 'Gb'
+    | 'G'
+    | 'Ab'
+    | 'A'
+    | 'Bb'
+    | 'B';
 
 export type ScoreOrigin = 'scanned' | 'composed';
 export type ScoreStatus = 'draft' | 'checking' | 'shared';
-
-export type Score = {
-    id: string;
-    owner_id: number;
-    title: string;
-    composer: string | null;
-    doh: DohKey;
-    origin: ScoreOrigin;
-    status: ScoreStatus;
-    document: ScoreDocument;
-    /** Send back with every save; a 409 means another tab saved first. */
-    version: number;
-    created_at: string;
-    updated_at: string;
-};
-
-export type ScoreVersion = {
-    id: number;
-    score_id: string;
-    version: number;
-    document: ScoreDocument;
-    saved_by: number | null;
-    note: string | null;
-    saved_at: string;
-};
-
 export type ShareAccess = 'view' | 'practise' | 'edit';
-
-export type Share = {
-    id: string;
-    score_id: string;
-    can: ShareAccess;
-    /** Pinned snapshot, or null for always-latest. */
-    version: number | null;
-    created_at: string;
-};
-
-export type ScanState = 'reading' | 'review' | 'done';
-
-export type Scan = {
-    id: string;
-    score_id: string;
-    pages: string[];
-    state: ScanState;
-    /** 0–1; 0.94 shows as "94% read". */
-    read_score: number | null;
-    created_at: string;
-};
-
-export type ScanFlag = {
-    id: number;
-    scan_id: string;
-    part: Voice;
-    bar: number;
-    beat: number;
-    crop: { x: number; y: number; w: number; h: number };
-    /** Best guess first. */
-    guesses: { pitch: Pitch; octave: Octave; confidence: number }[];
-    resolved: boolean;
-    picked: Note | null;
-};

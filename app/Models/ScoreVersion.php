@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\AsScoreDocument;
 use App\Music\ScoreDocument;
+use App\Notifications\ScoreActivity;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,25 @@ class ScoreVersion extends Model
     {
         static::creating(function (ScoreVersion $version) {
             $version->saved_at ??= now();
+        });
+
+        // Tell the owner when someone else changes their score.
+        static::created(function (ScoreVersion $version) {
+            $score = $version->score;
+
+            if ($version->saved_by === null || $version->saved_by === $score->owner_id) {
+                return;
+            }
+
+            $by = $version->savedBy;
+
+            if ($by !== null) {
+                $score->owner->notify(new ScoreActivity(
+                    actor: $by,
+                    score: $score,
+                    action: $version->note !== null ? lcfirst($version->note) : 'edited',
+                ));
+            }
         });
     }
 

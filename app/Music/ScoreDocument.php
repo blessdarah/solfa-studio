@@ -25,6 +25,12 @@ final readonly class ScoreDocument implements JsonSerializable
     public const MAX_BARS = 500;
 
     /**
+     * Which voices the words print under: sopranos and altos, tenors and
+     * basses, or each part with its own words (call and response).
+     */
+    public const WORDS_UNDER = ['SA', 'TB', 'each'];
+
+    /**
      * @param  list<MapEvent>  $map
      * @param  list<Part>  $parts
      * @param  list<Verse>  $verses
@@ -41,6 +47,7 @@ final readonly class ScoreDocument implements JsonSerializable
         public array $sections = [],
         public array $footnotes = [],
         public ?string $style = null,
+        public string $wordsUnder = 'SA',
     ) {
         $this->validate();
     }
@@ -85,6 +92,7 @@ final readonly class ScoreDocument implements JsonSerializable
                 optional: true,
             ),
             style: Field::optionalString($data, 'style', ''),
+            wordsUnder: Field::optionalString($data, 'words_under', '') ?? 'SA',
         );
     }
 
@@ -126,7 +134,7 @@ final readonly class ScoreDocument implements JsonSerializable
     {
         $parts = array_map(fn (Part $p) => $p->id === $part->id ? $part : $p, $this->parts);
 
-        return new self($this->bars, $this->map, $parts, $this->verses, $this->marks, $this->sections, $this->footnotes, $this->style);
+        return new self($this->bars, $this->map, $parts, $this->verses, $this->marks, $this->sections, $this->footnotes, $this->style, $this->wordsUnder);
     }
 
     /**
@@ -134,7 +142,7 @@ final readonly class ScoreDocument implements JsonSerializable
      */
     public function withMap(array $map): self
     {
-        return new self($this->bars, $map, $this->parts, $this->verses, $this->marks, $this->sections, $this->footnotes, $this->style);
+        return new self($this->bars, $map, $this->parts, $this->verses, $this->marks, $this->sections, $this->footnotes, $this->style, $this->wordsUnder);
     }
 
     /**
@@ -142,7 +150,7 @@ final readonly class ScoreDocument implements JsonSerializable
      */
     public function withMarks(array $marks): self
     {
-        return new self($this->bars, $this->map, $this->parts, $this->verses, $marks, $this->sections, $this->footnotes, $this->style);
+        return new self($this->bars, $this->map, $this->parts, $this->verses, $marks, $this->sections, $this->footnotes, $this->style, $this->wordsUnder);
     }
 
     /**
@@ -172,7 +180,8 @@ final readonly class ScoreDocument implements JsonSerializable
      *     verses: list<array<string, mixed>>,
      *     marks: list<array<string, mixed>>,
      *     sections: list<array<string, mixed>>,
-     *     footnotes: list<string>
+     *     footnotes: list<string>,
+     *     words_under: string
      * }
      */
     public function toArray(): array
@@ -191,6 +200,7 @@ final readonly class ScoreDocument implements JsonSerializable
             'marks' => $out($this->marks),
             'sections' => $out($this->sections),
             'footnotes' => $this->footnotes,
+            'words_under' => $this->wordsUnder,
         ];
     }
 
@@ -230,6 +240,10 @@ final readonly class ScoreDocument implements JsonSerializable
     {
         if ($this->bars < 1 || $this->bars > self::MAX_BARS) {
             throw InvalidScoreDocument::at('bars', 'must be between 1 and '.self::MAX_BARS);
+        }
+
+        if (! in_array($this->wordsUnder, self::WORDS_UNDER, true)) {
+            throw InvalidScoreDocument::at('words_under', 'expected one of: '.implode(', ', self::WORDS_UNDER));
         }
 
         $this->validateMap();

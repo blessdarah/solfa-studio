@@ -16,6 +16,9 @@ class DatabaseSeeder extends Seeder
             'name' => 'Blessdaraah',
             'email' => 'test@example.com',
             'phone' => '+233241234567',
+            'workspace_name' => 'Darah-B Studios',
+            'workspace_role' => 'Director',
+            'plan' => 'free',
         ]);
 
         $this->callWith(DemoLibrarySeeder::class, ['owner' => $user]);

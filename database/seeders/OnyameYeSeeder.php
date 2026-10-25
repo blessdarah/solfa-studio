@@ -95,32 +95,48 @@ class OnyameYeSeeder extends Seeder
         $document = $this->fill($document, Voice::Alto, $lines['A'], $doneA);
         $document = $this->fill($document, Voice::Bass, $lines['B'], $doneB);
 
+        // The words of W1, one syllable per soprano note.
         $words = [
-            5 => ['Me' => SyllableJoin::Split, 'da' => SyllableJoin::Split, 'woa' => SyllableJoin::Split, 'se' => SyllableJoin::None],
-            6 => ['Nyan' => SyllableJoin::Split, 'ko' => SyllableJoin::Split, 'pɔn' => SyllableJoin::None],
-            7 => ['wo' => SyllableJoin::None, 'dɔ' => SyllableJoin::None, 'no' => SyllableJoin::None, 'so' => SyllableJoin::None],
-            8 => ['ma' => SyllableJoin::None, 'me' => SyllableJoin::None, 'nkwa' => SyllableJoin::None],
-            9 => ['O' => SyllableJoin::Split, 'nya' => SyllableJoin::Split, 'me' => SyllableJoin::None, 'ye' => SyllableJoin::None],
-            10 => ['ɔ' => SyllableJoin::Split, 'dɔ' => SyllableJoin::None, 'me' => SyllableJoin::None, 'o' => SyllableJoin::None],
-            11 => ['ɔ' => SyllableJoin::Split, 'dɔ' => SyllableJoin::None, 'me' => SyllableJoin::None, 'daa' => SyllableJoin::None],
-            12 => ['Ye' => SyllableJoin::Split, 'su' => SyllableJoin::None, 'ne' => SyllableJoin::None, 'He' => SyllableJoin::Split, 'ne2' => SyllableJoin::None],
+            5 => [['Me', SyllableJoin::Split], ['da', SyllableJoin::None], ['wo', SyllableJoin::None], ['a', SyllableJoin::Split]],
+            6 => [['Nyan', SyllableJoin::Split], ['ko', SyllableJoin::Split], ['pɔn', SyllableJoin::None]],
+            7 => [['wo', SyllableJoin::None], ['dɔ', SyllableJoin::None], ['no', SyllableJoin::None], ['so', SyllableJoin::None]],
+            8 => [['ma', SyllableJoin::None], ['me', SyllableJoin::None], ['nkwa', SyllableJoin::None]],
+            9 => [['O', SyllableJoin::Split], ['nya', SyllableJoin::Split], ['me', SyllableJoin::None], ['ye', SyllableJoin::None]],
+            10 => [['ɔ', SyllableJoin::Split], ['dɔ', SyllableJoin::None], ['me', SyllableJoin::None], ['o', SyllableJoin::None]],
+            11 => [['ɔ', SyllableJoin::Split], ['dɔ', SyllableJoin::None], ['me', SyllableJoin::None], ['daa', SyllableJoin::Hold]],
+            12 => [['Ye', SyllableJoin::Split], ['su', SyllableJoin::None], ['ne', SyllableJoin::None]],
         ];
 
         $syllables = [];
         foreach ($words as $bar => $line) {
-            $beat = 0.0;
+            $starts = array_map(fn (array $note) => (float) $note[2], $lines['S'][$bar]);
 
-            foreach ($line as $text => $join) {
-                $syllables[] = new Syllable(Voice::Soprano, $bar, $beat, $text, $join);
-                $beat += 1.0;
+            foreach ($line as $i => [$text, $join]) {
+                if (isset($starts[$i])) {
+                    $syllables[] = new Syllable(Voice::Soprano, $bar, $starts[$i], $text, $join);
+                }
             }
         }
+
+        // Verse 2 changes the opening words of the chorus.
+        $verseTwo = [
+            new Syllable(Voice::Soprano, 9, 0.0, 'A', SyllableJoin::Split),
+            new Syllable(Voice::Soprano, 9, 1.0, 'yɛ', SyllableJoin::Split),
+            new Syllable(Voice::Soprano, 9, 2.0, 'yi', SyllableJoin::None),
+            new Syllable(Voice::Soprano, 9, 3.0, 'nwom', SyllableJoin::None),
+            new Syllable(Voice::Soprano, 10, 0.0, 'ma', SyllableJoin::None),
+            new Syllable(Voice::Soprano, 10, 2.0, 'no', SyllableJoin::None),
+            new Syllable(Voice::Soprano, 10, 3.0, 'daa', SyllableJoin::None),
+        ];
 
         $document = new ScoreDocument(
             bars: $document->bars,
             map: $document->map,
             parts: $document->parts,
-            verses: [new Verse('v1', 'Verse 1', 'tw', $syllables)],
+            verses: [
+                new Verse('v1', 'Verse 1', 'tw', $syllables),
+                new Verse('v2', 'Verse 2', 'tw', $verseTwo),
+            ],
             marks: [
                 new Mark(MarkKind::Dynamic, 'mp', new Position(5)),
                 new Mark(MarkKind::Text, 'gently', new Position(5)),
@@ -132,7 +148,7 @@ class OnyameYeSeeder extends Seeder
                 new Mark(MarkKind::Hairpin, 'dim', new Position(11), new Position(11, 4)),
                 new Mark(MarkKind::Dynamic, 'mp', new Position(12)),
                 new Mark(MarkKind::Nav, 'Fine', new Position(12, 3)),
-                new Mark(MarkKind::Text, 'Slower', new Position(13)),
+                new Mark(MarkKind::Nav, 'DS', new Position(16, 2)),
             ],
             sections: [
                 new Section('Verse', 1, 8),
@@ -140,7 +156,10 @@ class OnyameYeSeeder extends Seeder
                 new Section('1st time', 15, 15, ending: 1),
                 new Section('2nd time', 16, 16, ending: 2),
             ],
-            footnotes: ['NB: Sing the chorus in highlife style; the verses as an anthem.'],
+            footnotes: [
+                'Verse 2: sing “Ayɛyi nwom” in bar 9 in place of “Onyame ye”.',
+                'NB: Written for highlife band. You may perform it as an anthem with your own orchestration.',
+            ],
             style: 'highlife',
         );
 

@@ -1,23 +1,23 @@
-import type { ScoreDocument, Voice } from './score';
-import type { ScoreSummary } from './dashboard';
+import type { DohKey, ScoreDocument, Voice } from './score';
 
-export type { ScoreSummary };
-
-/** A point in the score, using a 1-based bar and a 1-based beat. */
-export type ComposeCursor = {
-    part: Voice;
-    bar: number;
-    beat: number;
-};
-
+/** What the compose screen (Paper W1–W3) receives. */
 export type ComposeProps = {
-    score: ScoreSummary;
+    score: {
+        id: string;
+        title: string;
+        composer: string | null;
+        arranger: string | null;
+        doh: DohKey;
+        version: number;
+        saved_at: string | null;
+    };
     document: ScoreDocument;
-    saved_label: string;
+    can_edit: boolean;
+    is_owner: boolean;
+    /** The part to open on, e.g. after "Start with Soprano". */
+    start_part: Voice | null;
+    /** Whether "Suggest alto for bars 10–12" can reach the AI. */
+    suggestions: boolean;
 };
 
-export type ScoreSystem = {
-    bars: number[];
-    from: number;
-    to: number;
-};
+export type EditorMode = 'notes' | 'lyrics';

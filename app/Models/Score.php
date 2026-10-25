@@ -5,15 +5,19 @@ namespace App\Models;
 use App\Casts\AsScoreDocument;
 use App\Enums\ScoreOrigin;
 use App\Enums\ScoreStatus;
+use App\Enums\ShareAccess;
 use App\Exceptions\StaleScoreVersion;
 use App\Music\ScoreDocument;
 use Carbon\CarbonImmutable;
 use Database\Factories\ScoreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -27,16 +31,18 @@ use Illuminate\Support\Facades\DB;
  * @property int $owner_id
  * @property string $title
  * @property string|null $composer
+ * @property string|null $arranger an arrangement when set ("arr. Ama Serwaa")
  * @property string $doh
  * @property ScoreOrigin $origin
  * @property ScoreStatus $status
  * @property ScoreDocument $document
  * @property int $version
+ * @property CarbonImmutable|null $archived_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $owner
  */
-#[Fillable(['title', 'composer', 'doh', 'origin', 'status', 'document'])]
+#[Fillable(['title', 'composer', 'arranger', 'doh', 'origin', 'status', 'document'])]
 class Score extends Model
 {
     /** @use HasFactory<ScoreFactory> */
@@ -84,6 +90,7 @@ class Score extends Model
             'status' => ScoreStatus::class,
             'document' => AsScoreDocument::class,
             'version' => 'integer',
+            'archived_at' => 'datetime',
         ];
     }
 
@@ -142,6 +149,80 @@ class Score extends Model
     public function restore(ScoreVersion $snapshot, ?User $by = null): void
     {
         $this->saveDocument($snapshot->document, $this->version, $by, "Restored version {$snapshot->version}");
+    }
+
+    public function isArrangement(): bool
+    {
+        return $this->arranger !== null && trim($this->arranger) !== '';
+    }
+
+    /**
+     * The owner, or anyone who has opened one of its share links.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        return $this->owner_id === $user->id || $this->shareFor($user) !== null;
+    }
+
+    /**
+     * The owner, or someone holding an "edit" share link.
+     */
+    public function isEditableBy(User $user): bool
+    {
+        return $this->owner_id === $user->id
+            || $this->shareFor($user)?->can === ShareAccess::Edit;
+    }
+
+    /**
+     * The strongest share link this person has opened for this score.
+     */
+    public function shareFor(User $user): ?Share
+    {
+        return $this->shares()
+            ->whereHas('recipients', fn (Builder $query) => $query->whereKey($user->id))
+            ->get()
+            ->sortByDesc(fn (Share $share) => match ($share->can) {
+                ShareAccess::Edit => 3,
+                ShareAccess::Practise => 2,
+                ShareAccess::View => 1,
+            })
+            ->first();
+    }
+
+    /**
+     * Scores still in the library (not archived).
+     *
+     * @param  Builder<Score>  $query
+     */
+    #[Scope]
+    protected function active(Builder $query): void
+    {
+        $query->whereNull('archived_at');
+    }
+
+    /**
+     * @param  Builder<Score>  $query
+     */
+    #[Scope]
+    protected function archived(Builder $query): void
+    {
+        $query->whereNotNull('archived_at');
+    }
+
+    /**
+     * @return BelongsToMany<Collection, $this>
+     */
+    public function collections(): BelongsToMany
+    {
+        return $this->belongsToMany(Collection::class)->withPivot('created_at');
+    }
+
+    /**
+     * @return BelongsToMany<Rehearsal, $this>
+     */
+    public function rehearsals(): BelongsToMany
+    {
+        return $this->belongsToMany(Rehearsal::class)->withPivot('position');
     }
 
     /**

@@ -69,7 +69,8 @@ class DemoLibrarySeeder extends Seeder
 
         $yesu = $this->score($owner, [
             'title' => 'Yesu Ne Hene',
-            'composer' => 'Traditional, arr. Ama Serwaa',
+            'composer' => 'Traditional',
+            'arranger' => 'Ama Serwaa',
             'doh' => 'G',
             'origin' => ScoreOrigin::Composed,
             'status' => ScoreStatus::Shared,
@@ -119,6 +120,7 @@ class DemoLibrarySeeder extends Seeder
         $christmas = $this->score($owner, [
             'title' => 'Christmas Medley',
             'composer' => 'Traditional',
+            'arranger' => 'Blessdaraah',
             'doh' => 'C',
             'origin' => ScoreOrigin::Scanned,
             'status' => ScoreStatus::Draft,
@@ -182,6 +184,7 @@ class DemoLibrarySeeder extends Seeder
         $nyame = $this->score($owner, [
             'title' => 'Nyame Nnwom',
             'composer' => 'Traditional',
+            'arranger' => 'Kwesi Appiah',
             'doh' => 'Bb',
             'origin' => ScoreOrigin::Scanned,
             'status' => ScoreStatus::Checking,
@@ -229,6 +232,60 @@ class DemoLibrarySeeder extends Seeder
         ]), now()->subDays(45));
 
         $this->firstVersionAt($onyameBa, now()->subDays(52));
+
+        // Put one away, so Archive has something in it.
+        $meda->forceFill(['archived_at' => now()->subDays(2)])->save();
+
+        $this->collections($owner, [
+            'Choir repertoire' => ['ink', [$yesu, $hallelujah, $nkwagye, $aseda, $wona, $onyame]],
+            'Christmas' => ['marker', [$christmas]],
+            'Practice' => ['grey', [$mfitiase, $onyameBa]],
+        ]);
+
+        $rehearsal = $owner->rehearsals()->create([
+            'ensemble' => 'Darah-B Choir',
+            'singers' => 12,
+            'starts_at' => now()->addDays(3)->setTime(16, 0),
+        ]);
+        $rehearsal->scores()->sync([
+            $onyame->id => ['position' => 0],
+            $israel->id => ['position' => 1],
+            $yesu->id => ['position' => 2],
+        ]);
+
+        // Gabriel shares one of his scores; the demo composer has opened it.
+        $theirs = $this->score($gabriel, [
+            'title' => 'Ayɛyi Dwom',
+            'composer' => 'Gabriel Adjei',
+            'doh' => 'D',
+            'origin' => ScoreOrigin::Composed,
+            'status' => ScoreStatus::Shared,
+        ], $this->document(12, 92, 4, 'highlife', [
+            'S' => ['all' => true],
+            'A' => ['all' => true],
+            'T' => ['all' => true],
+            'B' => ['all' => true],
+        ]), now()->subDays(2));
+
+        $theirs->shares()->create(['can' => ShareAccess::Practise])->openedBy($owner);
+    }
+
+    /**
+     * @param  array<string, array{0: string, 1: list<Score>}>  $collections
+     */
+    private function collections(User $owner, array $collections): void
+    {
+        $position = 0;
+
+        foreach ($collections as $name => [$color, $scores]) {
+            $collection = $owner->collections()->create([
+                'name' => $name,
+                'color' => $color,
+                'position' => $position++,
+            ]);
+
+            $collection->scores()->sync(array_map(fn (Score $score) => $score->id, $scores));
+        }
     }
 
     private function person(string $name, string $email): User

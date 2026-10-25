@@ -1,30 +1,17 @@
+import { keyLabel } from '@/lib/music';
 import { cn } from '@/lib/utils';
-import type { DohKey } from '@/types';
 
-export function KeyBadge({
-    doh,
-    alert = false,
-    size = 'md',
-    className,
-}: {
-    doh: DohKey | string;
-    alert?: boolean;
-    size?: 'sm' | 'md';
-    className?: string;
-}) {
+/** The square key tile at the start of a library row: "E♭", yellow when it needs review. */
+export function KeyBadge({ doh, alert = false }: { doh: string; alert?: boolean }) {
     return (
         <span
-            title={`Doh is ${doh}`}
+            title={`Doh is ${keyLabel(doh)}`}
             className={cn(
-                'inline-flex shrink-0 items-center justify-center rounded-[9px] font-solfa font-medium tracking-[-0.03em]',
-                size === 'md'
-                    ? 'h-9 w-9 text-[11.5px]'
-                    : 'h-7 w-7 rounded-[7px] text-[10px]',
-                alert ? 'bg-marker text-ink' : 'bg-copy text-ink',
-                className,
+                'flex size-9.5 items-center justify-center rounded-[8px] font-solfa text-[12.5px] leading-4 text-ink',
+                alert ? 'bg-marker' : 'bg-copy',
             )}
         >
-            {doh}
+            {keyLabel(doh)}
         </span>
     );
 }

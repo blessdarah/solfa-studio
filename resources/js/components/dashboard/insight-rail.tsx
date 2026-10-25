@@ -1,157 +1,120 @@
 import { Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
-import { ArrowRightIcon, ShareIcon } from '@/components/icons';
+import { ArrowRightIcon } from '@/components/icons';
 import { ResumeCard } from '@/components/dashboard/resume-card';
-import { cn } from '@/lib/utils';
-import type {
-    ActivityItem,
-    DashboardCounts,
-    LibraryShare,
-    ScoreSummary,
-} from '@/types';
+import { dashboardUrl } from '@/lib/dashboard-url';
+import type { DashboardProps } from '@/types';
 
-function RailLabel({
-    children,
-    count,
-}: {
-    children: ReactNode;
-    count?: number;
-}) {
-    return (
-        <div className="flex items-center justify-between gap-3">
-            <p className="text-[9px] font-semibold tracking-[0.14em] text-pencil uppercase">
-                {children}
-            </p>
-            {count !== undefined && (
-                <span className="font-solfa text-[9.5px] text-pencil/70">
-                    {count}
-                </span>
-            )}
-        </div>
-    );
+function Label({ children }: { children: string }) {
+    return <div className="text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">{children}</div>;
 }
 
+/**
+ * The right rail (Paper W0): resume card, at a glance, recent activity,
+ * next rehearsal, and the ⌘K hint.
+ */
 export function InsightRail({
     resume,
     counts,
     activity,
-    shares,
-}: {
-    resume: ScoreSummary | null;
-    counts: DashboardCounts;
-    activity: ActivityItem[];
-    shares: LibraryShare[];
+    rehearsal,
+    onPlanRehearsal,
+    onJump,
+}: Pick<DashboardProps, 'resume' | 'counts' | 'activity' | 'rehearsal'> & {
+    onPlanRehearsal: () => void;
+    onJump: () => void;
 }) {
+    const glance = [
+        { value: counts.all, label: 'Scores in your library' },
+        { value: counts.ready, label: 'Performance-ready' },
+        { value: counts.review, label: 'Awaiting review' },
+    ];
+
     return (
-        <aside className="sticky top-[60px] hidden h-[calc(100vh-60px)] w-[320px] shrink-0 flex-col overflow-y-auto border-l border-rule px-6 py-7 xl:flex">
+        <aside className="flex w-80 shrink-0 flex-col border-l border-rule px-6 pt-6 pb-5">
             {resume && <ResumeCard score={resume} />}
 
-            <section className={cn(resume ? 'mt-8' : 'mt-0')}>
-                <RailLabel>At a glance</RailLabel>
-                <dl className="mt-3 border-y border-rule">
-                    {[
-                        { label: 'All scores', value: counts.all },
-                        { label: 'Performance-ready', value: counts.ready },
-                        {
-                            label: 'Awaiting review',
-                            value: counts.review,
-                            marker: counts.review > 0,
-                        },
-                    ].map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="flex items-center justify-between border-b border-rule py-2.5 last:border-b-0"
-                        >
-                            <dt className="text-[11.5px] text-pencil">
-                                {stat.label}
-                            </dt>
-                            <dd className="flex items-center gap-2">
-                                <span className="font-display text-[20px] leading-none font-bold tracking-[-0.03em] text-ink">
-                                    {stat.value}
-                                </span>
-                                {stat.marker && (
-                                    <span className="size-1.5 rounded-full bg-marker ring-1 ring-ink/10" />
-                                )}
-                            </dd>
+            <div className="flex shrink-0 flex-col pt-5.5">
+                <div className="pb-4.5">
+                    <Label>AT A GLANCE</Label>
+                </div>
+                {glance.map((row, i) => (
+                    <div
+                        key={row.label}
+                        className={`flex h-11.5 shrink-0 items-center gap-3 ${i < glance.length - 1 ? 'border-b border-rule' : ''}`}
+                    >
+                        <div className="w-9.5 shrink-0 font-display text-[24px] leading-7 font-bold tracking-[-0.03em] text-ink">
+                            {row.value}
                         </div>
-                    ))}
-                </dl>
-            </section>
-
-            {shares.length > 0 && (
-                <section className="mt-7">
-                    <RailLabel count={counts.shared}>
-                        Shared with the choir
-                    </RailLabel>
-                    <div className="mt-2 space-y-1">
-                        {shares.map((share) => (
-                            <Link
-                                key={share.id}
-                                href={`/scores/${share.id}`}
-                                className="group -mx-2 flex items-center gap-2.5 rounded-[9px] px-2 py-2 transition hover:bg-copy/65"
-                            >
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-copy text-ink">
-                                    <ShareIcon className="h-3 w-3 text-pencil" />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[11.5px] font-semibold text-ink">
-                                        {share.title}
-                                    </span>
-                                    <span className="block text-[10px] text-pencil">
-                                        {share.label ?? 'Shared'} ·{' '}
-                                        {share.when}
-                                    </span>
-                                </span>
-                                <ArrowRightIcon className="h-3 w-3 shrink-0 text-pencil/40 transition group-hover:text-ink" />
-                            </Link>
-                        ))}
+                        <div className="text-[12.5px] leading-4 text-pencil">{row.label}</div>
                     </div>
-                </section>
-            )}
+                ))}
+            </div>
 
-            <section className="mt-7">
-                <RailLabel>Recent activity</RailLabel>
-                <div className="mt-3 space-y-4">
+            <div className="flex shrink-0 flex-col gap-3 pt-6">
+                <Label>RECENT ACTIVITY</Label>
+                <div className="flex flex-col gap-3">
                     {activity.map((item) => (
-                        <Link
-                            key={item.id}
-                            href={`/scores/${item.score_id}`}
-                            className="group flex gap-2.5"
-                        >
-                            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-copy font-solfa text-[9px] font-medium text-ink">
+                        <Link key={item.id} href={`/scores/${item.score_id}`} className="flex shrink-0 items-start gap-2.5">
+                            <span className="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-copy font-solfa text-[9px] leading-3 text-ink">
                                 {item.initials}
                             </span>
-                            <span className="min-w-0">
-                                <span className="block text-[11.5px] leading-[1.4] text-ink">
-                                    <span className="font-semibold">
-                                        {item.user_name}
-                                    </span>{' '}
-                                    {item.action}
-                                </span>
-                                <span className="mt-0.5 block truncate text-[10.5px] text-pencil">
-                                    {item.score_title} · {item.when}
-                                </span>
+                            <span className="flex min-w-0 grow basis-0 flex-col gap-px">
+                                <span className="text-[12.5px] leading-4 font-semibold text-ink">{item.user_name}</span>
+                                <span className="text-[11.5px] leading-3.75 text-pencil">{item.text}</span>
                             </span>
                         </Link>
                     ))}
                     {activity.length === 0 && (
-                        <p className="text-[11px] leading-5 text-pencil">
-                            Saves and edits will appear here as you work.
-                        </p>
+                        <span className="text-[11.5px] leading-3.75 text-pencil">Saves and edits will show here.</span>
                     )}
                 </div>
-            </section>
+            </div>
 
-            <div className="mt-auto pt-8">
-                <div className="flex items-center justify-between rounded-[10px] bg-copy px-3 py-2.5">
-                    <span className="text-[10.5px] text-pencil">
-                        Jump to any score
-                    </span>
-                    <kbd className="rounded-[5px] border border-rule bg-paper px-1.5 py-0.5 font-solfa text-[9px] text-pencil">
-                        ⌘K
-                    </kbd>
+            <div className="flex shrink-0 flex-col pt-5.5">
+                <div className="flex flex-col border-t border-rule pt-4.5">
+                    <div className="flex items-center justify-between">
+                        <Label>NEXT REHEARSAL</Label>
+                        {rehearsal && <span className="text-[11px] leading-3.5 text-pencil">{rehearsal.in}</span>}
+                    </div>
+                    {rehearsal ? (
+                        <>
+                            <div className="pt-3 text-[13px] leading-4.5 font-semibold text-ink">{rehearsal.when}</div>
+                            <div className="pt-1 text-[11.5px] leading-3.75 text-pencil">
+                                {rehearsal.ensemble}
+                                {rehearsal.singers ? ` · ${rehearsal.singers} singers` : ''}
+                            </div>
+                            <Link
+                                href={dashboardUrl({ view: 'rehearsal', rehearsal: rehearsal.id })}
+                                className="flex items-center gap-1.25 pt-3 text-ink"
+                            >
+                                <span className="text-[12.5px] leading-4 font-semibold">Rehearsal plan</span>
+                                <ArrowRightIcon size={11} strokeWidth={1.7} />
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            <div className="pt-3 text-[11.5px] leading-3.75 text-pencil">Nothing planned yet.</div>
+                            <button type="button" onClick={onPlanRehearsal} className="flex items-center gap-1.25 pt-3 text-ink">
+                                <span className="text-[12.5px] leading-4 font-semibold">Plan a rehearsal</span>
+                                <ArrowRightIcon size={11} strokeWidth={1.7} />
+                            </button>
+                        </>
+                    )}
                 </div>
             </div>
+
+            <div className="min-h-4 grow basis-0" />
+
+            <button
+                type="button"
+                onClick={onJump}
+                className="flex shrink-0 items-center justify-between border-t border-rule pt-3 text-left"
+            >
+                <span className="text-[11px] leading-3.5 text-pencil">Jump to any score</span>
+                <kbd className="flex items-center gap-0.75 rounded-[4px] bg-copy px-1.5 py-0.75 font-solfa text-[10px] leading-3 text-pencil">
+                    ⌘K
+                </kbd>
+            </button>
         </aside>
     );
 }

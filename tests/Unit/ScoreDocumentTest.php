@@ -166,6 +166,22 @@ class ScoreDocumentTest extends TestCase
         $this->assertNull((new Note(Pitch::Rest, 0, 0, 1))->midi($eFlat));
     }
 
+    public function test_words_print_under_a_choice_of_voices(): void
+    {
+        $data = ScoreDocument::blank(bars: 4)->toArray();
+        $this->assertSame('SA', $data['words_under']);
+
+        $data['words_under'] = 'each';
+        $this->assertSame('each', ScoreDocument::fromArray($data)->wordsUnder);
+
+        unset($data['words_under']);
+        $this->assertSame('SA', ScoreDocument::fromArray($data)->wordsUnder);
+
+        $data['words_under'] = 'men';
+        $this->expectExceptionMessage('words_under: expected one of: SA, TB, each');
+        ScoreDocument::fromArray($data);
+    }
+
     public function test_done_bars_drive_part_progress(): void
     {
         $doc = $this->withAltoBar10(ScoreDocument::blank(bars: 16));

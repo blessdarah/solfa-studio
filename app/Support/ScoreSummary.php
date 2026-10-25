@@ -9,11 +9,9 @@ use App\Models\Score;
 use App\Music\Bar;
 use App\Music\Note;
 use App\Music\Part;
-use App\Music\Pitch;
 use App\Music\ScoreDocument;
 use App\Music\Voice;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Collection;
 
 /**
  * Turns a Score into the small, flat shape the library and overview need:
@@ -23,6 +21,11 @@ use Illuminate\Support\Collection;
  *     id: string,
  *     title: string,
  *     composer: string|null,
+ *     arranger: string|null,
+ *     kind: string,
+ *     meta: string,
+ *     archived: bool,
+ *     owner_name: string,
  *     doh: string,
  *     origin: string,
  *     status: string,
@@ -42,9 +45,8 @@ use Illuminate\Support\Collection;
  *     shared: bool,
  *     share_can: string|null,
  *     share_label: string|null,
- *     solfa_preview: string
+ *     preview: list<array{beats: int, notes: list<array<string, mixed>>}>
  * }
- * @phpstan-type KeyCount array{key: string, count: int}
  */
 final class ScoreSummary
 {
@@ -104,6 +106,11 @@ final class ScoreSummary
             'id' => $score->id,
             'title' => $score->title,
             'composer' => $score->composer,
+            'arranger' => $score->arranger,
+            'kind' => $score->isArrangement() ? 'arrangement' : 'composition',
+            'meta' => self::meta($score, $document),
+            'archived' => $score->archived_at !== null,
+            'owner_name' => $score->owner->name,
             'doh' => $score->doh,
             'origin' => $score->origin->value,
             'status' => $score->status->value,
@@ -123,64 +130,35 @@ final class ScoreSummary
             'shared' => $score->shares->isNotEmpty(),
             'share_can' => $share?->can->value,
             'share_label' => $share ? self::shareLabel($share->can) : null,
-            'solfa_preview' => self::solfaPreview($document),
+            'preview' => self::preview($document),
         ];
     }
 
     /**
-     * A short sol-fa line for the busiest voice, used on the resume card.
+     * The first four bars with notes in the busiest voice, for the sol-fa
+     * sketch on the resume card (the browser prints them).
+     *
+     * @return list<array{beats: int, notes: list<array<string, mixed>>}>
      */
-    public static function solfaPreview(ScoreDocument $document, int $bars = 4): string
+    public static function preview(ScoreDocument $document, int $bars = 4): array
     {
         $busiest = collect($document->parts)
-            ->sortByDesc(fn (Part $part) => collect($part->bars)->sum(
-                fn (Bar $bar) => count($bar->notes),
-            ))
+            ->sortByDesc(fn (Part $part) => collect($part->bars)->sum(fn (Bar $bar) => count($bar->notes)))
             ->first();
 
-        return self::partPreview($busiest, $bars);
-    }
-
-    /**
-     * Up to $bars bars of one part, with the silences left out.
-     */
-    public static function partPreview(?Part $part, int $bars = 3): string
-    {
-        if ($part === null) {
-            return '';
+        if ($busiest === null) {
+            return [];
         }
 
-        $lines = [];
-
-        foreach ($part->bars as $bar) {
-            if ($bar->notes === []) {
-                continue;
-            }
-
-            $lines[] = collect($bar->notes)
-                ->take(8)
-                ->map(fn (Note $note) => self::solfa($note))
-                ->implode(' · ');
-
-            if (count($lines) === $bars) {
-                break;
-            }
-        }
-
-        return implode(' | ', $lines);
-    }
-
-    public static function solfa(Note $note): string
-    {
-        if ($note->pitch === Pitch::Rest) {
-            return '–';
-        }
-
-        return $note->pitch->value.match ($note->octave) {
-            -1 => ',',
-            1 => "'",
-            default => '',
-        };
+        return collect($busiest->bars)
+            ->filter(fn (Bar $bar) => $bar->notes !== [])
+            ->take($bars)
+            ->map(fn (Bar $bar) => [
+                'beats' => $document->beatsInBar($bar->no),
+                'notes' => array_map(fn (Note $note) => $note->toArray(), $bar->notes),
+            ])
+            ->values()
+            ->all();
     }
 
     public static function human(?CarbonInterface $date): string
@@ -212,13 +190,14 @@ final class ScoreSummary
             : $date->format('M j, Y');
     }
 
+    /**
+     * "Gabriel Adjei" → "GA", "Darah-B Studios" → "DB".
+     */
     public static function initials(?string $name): string
     {
-        $parts = preg_split('/\s+/', trim($name ?? 'You')) ?: [];
-        $first = $parts[0] ?? 'Y';
-        $last = $parts[1] ?? '';
+        $parts = preg_split('/[\s\-]+/', trim($name ?? 'You'), -1, PREG_SPLIT_NO_EMPTY) ?: ['You'];
 
-        return strtoupper(substr($first, 0, 1).substr($last, 0, 1));
+        return mb_strtoupper(mb_substr($parts[0], 0, 1).mb_substr($parts[1] ?? '', 0, 1));
     }
 
     public static function shareLabel(ShareAccess $access): string
@@ -231,19 +210,61 @@ final class ScoreSummary
     }
 
     /**
-     * @param  Collection<int, ScoreRow>  $scores
-     * @return Collection<int, KeyCount>
+     * The grey line under a title in the library:
+     * "Traditional · arr. Ama Serwaa · Doh is G" or
+     * "Blessdaraah · Highlife · Doh is E♭".
      */
-    public static function keys(Collection $scores): Collection
+    public static function meta(Score $score, ScoreDocument $document): string
     {
-        return $scores
-            ->groupBy('doh')
-            ->map(fn (Collection $group, string $key) => [
-                'key' => $key,
-                'count' => $group->count(),
-            ])
-            ->sortByDesc('count')
-            ->take(6)
-            ->values();
+        $parts = [];
+
+        $composer = trim((string) $score->composer);
+        $parts[] = $composer !== '' ? $composer : 'Unknown composer';
+
+        if ($score->isArrangement()) {
+            $parts[] = 'arr. '.trim((string) $score->arranger);
+        }
+
+        if ($document->style !== null && trim($document->style) !== '') {
+            $parts[] = ucfirst(trim($document->style));
+        }
+
+        $parts[] = 'Doh is '.self::key($score->doh);
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * "Eb" → "E♭", "F#" → "F♯".
+     */
+    public static function key(string $doh): string
+    {
+        return str_replace(['b', '#'], ['♭', '♯'], $doh);
+    }
+
+    /**
+     * Compact times for activity lines: "now", "12m", "2h", "Yesterday", "Oct 21".
+     */
+    public static function short(?CarbonInterface $date): string
+    {
+        if ($date === null) {
+            return '';
+        }
+
+        if ($date->isToday()) {
+            $minutes = (int) abs($date->diffInMinutes(now()));
+
+            return match (true) {
+                $minutes < 1 => 'now',
+                $minutes < 60 => $minutes.'m',
+                default => (int) abs($date->diffInHours(now())).'h',
+            };
+        }
+
+        if ($date->isYesterday()) {
+            return 'Yesterday';
+        }
+
+        return $date->year === now()->year ? $date->format('M j') : $date->format('M j, Y');
     }
 }

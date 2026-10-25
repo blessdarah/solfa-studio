@@ -1,115 +1,63 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
-import { ChevronDownIcon, SearchIcon, XIcon } from '@/components/icons';
+import { Head, router, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import { InsightRail } from '@/components/dashboard/insight-rail';
 import { LibraryRail } from '@/components/dashboard/library-rail';
 import { NewScoreModal } from '@/components/dashboard/new-score-modal';
-import { ResumeCard } from '@/components/dashboard/resume-card';
+import { RehearsalModal } from '@/components/dashboard/rehearsal-modal';
 import { ScoreLedger } from '@/components/dashboard/score-ledger';
 import { Toast } from '@/components/toast';
 import { TopBar } from '@/components/top-bar';
 import { dashboardUrl } from '@/lib/dashboard-url';
-import { cn } from '@/lib/utils';
-import type {
-    DashboardProps,
-    DashboardSort,
-    DashboardView,
-} from '@/types';
+import type { DashboardProps } from '@/types';
 
-const CHIPS: {
-    view: DashboardView;
-    label: string;
-    countKey: 'all' | 'review' | 'composed' | 'scanned';
-    marker?: boolean;
-}[] = [
-    { view: 'all', label: 'All', countKey: 'all' },
-    { view: 'review', label: 'Needs review', countKey: 'review', marker: true },
-    { view: 'composed', label: 'Composed', countKey: 'composed' },
-    { view: 'scanned', label: 'Scanned', countKey: 'scanned' },
-];
+function greeting(): string {
+    const hour = new Date().getHours();
 
-export default function Dashboard({
-    scores,
-    total,
-    filtered_total,
-    shown,
-    counts,
-    keys,
-    resume,
-    activity,
-    shares,
-    filters,
-}: DashboardProps) {
+    return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+/**
+ * The library (Paper W0 — Dashboard · Scores).
+ */
+export default function Dashboard(props: DashboardProps) {
     const { auth, flash } = usePage().props;
     const user = auth.user!;
+    const { filters, counts } = props;
 
     const [query, setQuery] = useState(filters.q);
-    const [newScoreOpen, setNewScoreOpen] = useState(false);
+    const [newScore, setNewScore] = useState(false);
+    const [planning, setPlanning] = useState(false);
     const [toast, setToast] = useState<string | null>(flash.success ?? null);
+    const searchRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (flash.success) {
-            setToast(flash.success);
-        }
-    }, [flash.success]);
+    useEffect(() => setToast(flash.success ?? null), [flash.success]);
 
-    useEffect(() => {
-        setQuery(filters.q);
-    }, [filters.q]);
+    useEffect(() => setQuery(filters.q), [filters.q]);
 
+    // Search as you type, without stacking up history entries.
     useEffect(() => {
         if (query === filters.q) {
             return;
         }
 
         const timer = window.setTimeout(() => {
-            router.get(
-                dashboardUrl({
-                    view: filters.view,
-                    key: filters.key,
-                    sort: filters.sort,
-                    q: query,
-                    all: filters.all,
-                }),
-                {},
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    replace: true,
-                },
-            );
-        }, 320);
+            router.get(dashboardUrl({ ...filters, q: query, all: false }), {}, {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            });
+        }, 300);
 
         return () => window.clearTimeout(timer);
-    }, [
-        query,
-        filters.q,
-        filters.view,
-        filters.key,
-        filters.sort,
-        filters.all,
-    ]);
+    }, [query, filters]);
 
+    // ⌘K / Ctrl-K jumps to search.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (
-                (event.metaKey || event.ctrlKey) &&
-                event.key.toLowerCase() === 'k'
-            ) {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
                 event.preventDefault();
-
-                const inputs = Array.from(
-                    document.querySelectorAll<HTMLInputElement>(
-                        '[data-score-search]',
-                    ),
-                );
-                const input =
-                    inputs.find(
-                        (element) => element.offsetParent !== null,
-                    ) ?? inputs[0];
-
-                input?.focus();
-                input?.select();
+                searchRef.current?.focus();
+                searchRef.current?.select();
             }
         };
 
@@ -118,268 +66,95 @@ export default function Dashboard({
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    const hour = new Date().getHours();
-    const greeting =
-        hour < 12
-            ? 'Good morning'
-            : hour < 17
-              ? 'Good afternoon'
-              : 'Good evening';
-    const firstName = user.name.split(/\s+/)[0] ?? user.name;
+    const firstName = (user.name.split(/\s+/)[0] ?? user.name).toUpperCase();
+    const summary =
+        filters.view === 'all'
+            ? [
+                  `${counts.all} ${counts.all === 1 ? 'score' : 'scores'}`,
+                  `${counts.review} need${counts.review === 1 ? 's' : ''} a second look`,
+                  `${counts.shared} shared with the choir`,
+              ].join(' · ')
+            : `${props.filtered_total} ${props.filtered_total === 1 ? 'score' : 'scores'}`;
 
-    const summaryLine =
-        total === 0
-            ? 'Your library is ready for its first score.'
-            : [
-                  `${total} ${total === 1 ? 'score' : 'scores'}`,
-                  counts.review === 0
-                      ? 'all caught up'
-                      : `${counts.review} need${
-                            counts.review === 1 ? 's' : ''
-                        } a second look`,
-                  counts.shared === 0
-                      ? 'nothing shared yet'
-                      : `${counts.shared} shared with the choir`,
-              ].join(' · ');
-
-    const changeView = (view: DashboardView) => {
-        router.get(
-            dashboardUrl({
-                view,
-                sort: filters.sort,
-                q: filters.q,
-                all: filters.all,
-            }),
-            {},
-            { preserveState: true, preserveScroll: true },
-        );
-    };
-
-    const changeSort = (sort: DashboardSort) => {
-        router.get(
-            dashboardUrl({
-                view: filters.view,
-                key: filters.key,
-                sort,
-                q: filters.q,
-                all: filters.all,
-            }),
-            {},
-            { preserveState: true, preserveScroll: true },
-        );
-    };
+    const emptyText =
+        filters.q !== ''
+            ? 'No scores match your search.'
+            : filters.view === 'archive'
+              ? 'Drag a score onto Archive to put it away.'
+              : filters.view === 'collection'
+                ? 'Drag scores onto this collection to add them.'
+                : filters.view === 'shared'
+                  ? 'Scores other people share with you appear here.'
+                  : 'No scores yet. Start one with New score.';
 
     return (
         <>
-            <Head title="Your scores" />
+            <Head title={props.heading} />
 
-            <div className="min-h-screen bg-paper">
+            <div className="flex h-screen min-h-[640px] flex-col bg-paper">
                 <TopBar
+                    ref={searchRef}
                     user={user}
-                    breadcrumb="Library"
-                    search={{ value: query, onChange: setQuery }}
-                    onNewScore={() => setNewScoreOpen(true)}
+                    crumb="Library"
+                    search={query}
+                    onSearch={setQuery}
+                    onNewScore={() => setNewScore(true)}
+                    notifications={props.notifications}
                 />
 
-                <div className="mx-auto flex w-full max-w-[1600px]">
-                    <LibraryRail
-                        user={user}
-                        counts={counts}
-                        keys={keys}
-                        filters={filters}
-                    />
+                <div className="flex min-h-0 w-full grow basis-0 bg-paper">
+                    <div className="hidden lg:flex">
+                        <LibraryRail
+                            user={user}
+                            workspace={props.workspace}
+                            nav={props.nav}
+                            collections={props.collections}
+                            filters={filters}
+                            onScan={() => setToast('Scanning a paper score is coming to the web soon.')}
+                        />
+                    </div>
 
-                    <main className="min-w-0 flex-1 px-4 pt-7 pb-12 sm:px-7 lg:px-9">
-                        <div>
-                            <p className="text-[9.5px] font-semibold tracking-[0.16em] text-pencil uppercase">
-                                {greeting}, {firstName}
-                            </p>
-                            <h1 className="mt-2 font-display text-[42px] leading-none font-extrabold tracking-[-0.055em] text-ink sm:text-[52px]">
-                                Your scores
+                    <main className="flex min-w-0 grow basis-0 flex-col overflow-y-auto px-9 pt-9 pb-5">
+                        <div className="flex shrink-0 flex-col gap-2">
+                            <div className="text-[10.5px] leading-3.5 font-semibold tracking-[0.11em] text-pencil">
+                                {greeting().toUpperCase()}, {firstName}
+                            </div>
+                            <h1 className="font-display text-[56px] leading-14 font-extrabold tracking-[-0.035em] text-ink">
+                                {props.heading}
                             </h1>
-                            <p className="mt-3 text-[12px] leading-5 text-pencil">
-                                {summaryLine}
-                            </p>
+                            <div className="text-[13.5px] leading-5 text-pencil">{summary}</div>
                         </div>
-
-                        <label className="relative mt-5 block md:hidden">
-                            <span className="sr-only">Search scores</span>
-                            <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-pencil" />
-                            <input
-                                id="score-search-mobile"
-                                data-score-search
-                                value={query}
-                                onChange={(event) =>
-                                    setQuery(event.target.value)
-                                }
-                                placeholder="Search scores"
-                                autoComplete="off"
-                                className="h-11 w-full rounded-full border border-rule bg-paper pr-10 pl-10 text-[13px] text-ink outline-none transition placeholder:text-pencil/60 focus:border-ink focus:ring-2 focus:ring-ink/10"
-                            />
-                            {query !== '' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setQuery('')}
-                                    aria-label="Clear search"
-                                    className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-pencil hover:bg-copy hover:text-ink"
-                                >
-                                    <XIcon className="h-3.5 w-3.5" />
-                                </button>
-                            )}
-                        </label>
-
-                        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                {CHIPS.map((chip) => {
-                                    const active =
-                                        filters.view === chip.view;
-                                    const count = counts[chip.countKey];
-
-                                    return (
-                                        <button
-                                            key={chip.view}
-                                            type="button"
-                                            onClick={() =>
-                                                changeView(chip.view)
-                                            }
-                                            className={cn(
-                                                'inline-flex h-8 items-center rounded-full border px-3 text-[11px] font-medium transition',
-                                                active
-                                                    ? 'border-ink bg-ink text-paper'
-                                                    : 'border-rule bg-paper text-pencil hover:bg-copy hover:text-ink',
-                                            )}
-                                        >
-                                            {chip.label}
-                                            <span
-                                                className={cn(
-                                                    'ml-1.5 font-solfa text-[10px]',
-                                                    active
-                                                        ? 'text-paper/55'
-                                                        : chip.marker &&
-                                                            count > 0
-                                                          ? 'rounded-full bg-marker px-1.5 py-0.5 font-medium text-ink'
-                                                          : 'text-pencil/60',
-                                                )}
-                                            >
-                                                {count}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-
-                                {filters.key && (
-                                    <Link
-                                        href={dashboardUrl({
-                                            view: filters.view,
-                                            sort: filters.sort,
-                                            q: filters.q,
-                                            all: filters.all,
-                                        })}
-                                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-marker bg-marker px-3 text-[11px] font-semibold text-ink"
-                                    >
-                                        Key {filters.key}
-                                        <XIcon className="h-3 w-3" />
-                                    </Link>
-                                )}
-                            </div>
-
-                            <div className="relative">
-                                <select
-                                    value={filters.sort}
-                                    onChange={(event) =>
-                                        changeSort(
-                                            event.target
-                                                .value as DashboardSort,
-                                        )
-                                    }
-                                    aria-label="Sort scores"
-                                    className="h-8 appearance-none rounded-full border border-rule bg-paper pr-8 pl-3 text-[11px] font-medium text-ink outline-none transition hover:bg-copy focus:border-ink"
-                                >
-                                    <option value="edited">
-                                        Recently edited
-                                    </option>
-                                    <option value="title">Title A–Z</option>
-                                    <option value="key">Key</option>
-                                </select>
-                                <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-2.5 h-3 w-3 -translate-y-1/2 text-pencil" />
-                            </div>
-                        </div>
-
-                        {keys.length > 0 && (
-                            <div className="mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 lg:hidden">
-                                <span className="mr-1 shrink-0 text-[9px] font-semibold tracking-[0.14em] text-pencil uppercase">
-                                    Keys
-                                </span>
-                                {keys.map((entry) => {
-                                    const active =
-                                        filters.key === entry.key;
-
-                                    return (
-                                        <Link
-                                            key={entry.key}
-                                            href={dashboardUrl({
-                                                view: filters.view,
-                                                key: active
-                                                    ? null
-                                                    : entry.key,
-                                                sort: filters.sort,
-                                                q: filters.q,
-                                                all: filters.all,
-                                            })}
-                                            className={cn(
-                                                'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 font-solfa text-[10px] transition',
-                                                active
-                                                    ? 'border-ink bg-ink text-paper'
-                                                    : 'border-rule bg-paper text-ink hover:bg-copy',
-                                            )}
-                                        >
-                                            {entry.key}
-                                            <span
-                                                className={
-                                                    active
-                                                        ? 'text-paper/55'
-                                                        : 'text-pencil/55'
-                                                }
-                                            >
-                                                {entry.count}
-                                            </span>
-                                        </Link>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {resume && (
-                            <div className="mt-6 xl:hidden">
-                                <ResumeCard score={resume} compact />
-                            </div>
-                        )}
 
                         <ScoreLedger
-                            scores={scores}
+                            scores={props.scores}
                             filters={filters}
-                            total={total}
-                            filteredTotal={filtered_total}
-                            shown={shown}
-                            onNewScore={() => setNewScoreOpen(true)}
+                            kinds={props.kinds}
+                            shown={props.shown}
+                            filteredTotal={props.filtered_total}
+                            emptyText={emptyText}
                         />
                     </main>
 
-                    <InsightRail
-                        resume={resume}
-                        counts={counts}
-                        activity={activity}
-                        shares={shares}
-                    />
+                    <div className="hidden xl:flex">
+                        <InsightRail
+                            resume={props.resume}
+                            counts={counts}
+                            activity={props.activity}
+                            rehearsal={props.rehearsal}
+                            onPlanRehearsal={() => setPlanning(true)}
+                            onJump={() => searchRef.current?.focus()}
+                        />
+                    </div>
                 </div>
             </div>
 
-            <NewScoreModal
-                open={newScoreOpen}
-                onClose={() => setNewScoreOpen(false)}
-                user={user}
+            <NewScoreModal open={newScore} onClose={() => setNewScore(false)} user={user} />
+            <RehearsalModal
+                open={planning}
+                onClose={() => setPlanning(false)}
+                scores={props.choices}
+                ensemble={props.workspace.name}
             />
-
             <Toast message={toast} onClose={() => setToast(null)} />
         </>
     );

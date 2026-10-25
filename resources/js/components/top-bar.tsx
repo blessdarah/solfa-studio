@@ -1,81 +1,72 @@
 import { Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { forwardRef } from 'react';
 import { AvatarMenu } from '@/components/avatar-menu';
-import { Logo } from '@/components/logo';
+import { NotificationsMenu } from '@/components/dashboard/notifications-menu';
 import { PlusIcon, SearchIcon } from '@/components/icons';
-import type { User } from '@/types';
+import { Logo } from '@/components/logo';
+import type { NotificationItem, User } from '@/types';
 
-type TopBarProps = {
-    user: User;
-    breadcrumb?: ReactNode;
-    search?: {
-        value: string;
-        onChange: (value: string) => void;
-    };
-    onNewScore?: () => void;
-};
-
-export function TopBar({
-    user,
-    breadcrumb,
-    search,
-    onNewScore,
-}: TopBarProps) {
+/**
+ * The library's top bar (Paper W0): logo, "Workspace / Library", search
+ * with ⌘K, the bell, New score and the account initial.
+ */
+export const TopBar = forwardRef<
+    HTMLInputElement,
+    {
+        user: User;
+        crumb: string;
+        search: string;
+        onSearch: (value: string) => void;
+        onNewScore: () => void;
+        notifications: { unread: number; items: NotificationItem[] };
+    }
+>(function TopBar({ user, crumb, search, onSearch, onNewScore, notifications }, searchRef) {
     return (
-        <header className="sticky top-0 z-40 h-[60px] border-b border-rule bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/80">
-            <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-5">
-                <div className="flex min-w-0 items-center gap-4">
-                    <Link
-                        href="/dashboard"
-                        aria-label="Sol-fa Studio — your scores"
-                        className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
-                    >
-                        <Logo />
+        <header className="flex h-15 w-full shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
+            <div className="flex items-center gap-5">
+                <Link href="/dashboard" className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
+                    <Logo />
+                </Link>
+                <div className="h-5 w-px shrink-0 bg-rule" />
+                <nav className="flex items-center gap-2" aria-label="Breadcrumb">
+                    <Link href="/dashboard" className="text-[13.5px] leading-4.5 text-pencil hover:text-ink">
+                        Workspace
                     </Link>
+                    <span className="text-[13.5px] leading-4.5 text-faint">/</span>
+                    <span className="text-[13.5px] leading-4.5 font-medium text-ink">{crumb}</span>
+                </nav>
+            </div>
 
-                    <div className="hidden h-4 items-center gap-2 text-[12px] font-medium text-pencil sm:flex">
-                        <span className="h-3.5 w-px bg-rule" />
-                        {breadcrumb ?? 'Library'}
-                    </div>
-                </div>
+            <div className="flex items-center gap-2.5">
+                <label className="flex h-9 w-62.5 shrink-0 items-center gap-2 rounded-full bg-copy px-3 focus-within:ring-2 focus-within:ring-ink/10">
+                    <SearchIcon className="text-pencil" />
+                    <span className="sr-only">Search scores</span>
+                    <input
+                        ref={searchRef}
+                        value={search}
+                        onChange={(event) => onSearch(event.target.value)}
+                        placeholder="Search scores, composers"
+                        autoComplete="off"
+                        className="min-w-0 grow bg-transparent text-[13px] leading-4 text-ink outline-none placeholder:text-pencil"
+                    />
+                    <kbd className="flex shrink-0 items-center rounded-[4px] bg-paper px-1.25 py-0.5 font-solfa text-[10px] leading-3 text-pencil">
+                        ⌘K
+                    </kbd>
+                </label>
 
-                <div className="flex items-center gap-2.5">
-                    {search && (
-                        <label className="relative hidden w-[250px] md:block xl:w-[280px]">
-                            <span className="sr-only">Search scores</span>
-                            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-pencil" />
-                            <input
-                                id="score-search"
-                                data-score-search
-                                value={search.value}
-                                onChange={(event) =>
-                                    search.onChange(event.target.value)
-                                }
-                                placeholder="Search scores"
-                                autoComplete="off"
-                                className="h-9 w-full rounded-full border border-transparent bg-copy pr-12 pl-9 text-[12.5px] text-ink outline-none transition placeholder:text-pencil/70 focus:border-rule focus:bg-paper"
-                            />
-                            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 rounded-[5px] border border-rule bg-paper px-1.5 py-0.5 font-solfa text-[9.5px] text-pencil">
-                                ⌘K
-                            </span>
-                        </label>
-                    )}
+                <NotificationsMenu unread={notifications.unread} items={notifications.items} />
 
-                    {onNewScore && (
-                        <button
-                            type="button"
-                            onClick={onNewScore}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-3 text-[12.5px] font-semibold text-paper outline-none transition hover:bg-ink/85 focus-visible:ring-2 focus-visible:ring-ink/20 focus-visible:ring-offset-2 sm:px-4"
-                        >
-                            <PlusIcon className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">New score</span>
-                            <span className="sr-only sm:hidden">New score</span>
-                        </button>
-                    )}
+                <button
+                    type="button"
+                    onClick={onNewScore}
+                    className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-4 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
+                >
+                    <PlusIcon />
+                    <span className="text-[13.5px] leading-4.5 font-semibold">New score</span>
+                </button>
 
-                    <AvatarMenu user={user} />
-                </div>
+                <AvatarMenu user={user} />
             </div>
         </header>
     );
-}
+});

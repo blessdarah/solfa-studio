@@ -1,188 +1,202 @@
 import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 
-type SvgProps = {
-    children: ReactNode;
+/**
+ * Icons drawn exactly as in the Paper file: a 16-unit grid, round caps,
+ * strokes in currentColor so the parent's text colour decides the ink.
+ */
+type IconProps = { size?: number; className?: string; strokeWidth?: number };
+
+function Svg({
+    size = 16,
+    className,
+    children,
+    viewBox = '0 0 16 16',
+}: {
+    size?: number;
     className?: string;
-};
-
-function Svg({ children, className }: SvgProps) {
+    children: ReactNode;
+    viewBox?: string;
+}) {
     return (
         <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.6}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            width={size}
+            height={size}
+            viewBox={viewBox}
             aria-hidden="true"
-            className={cn('h-4 w-4', className)}
+            className={className}
+            style={{ flexShrink: 0, display: 'inline-block' }}
         >
             {children}
         </svg>
     );
 }
 
-export function SearchIcon({ className }: { className?: string }) {
+const line = (strokeWidth: number) =>
+    ({
+        fill: 'none',
+        stroke: 'currentColor',
+        strokeWidth,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+    }) as const;
+
+export function SearchIcon({ size = 14, className, strokeWidth = 1.5 }: IconProps) {
     return (
-        <Svg className={className}>
-            <circle cx="11" cy="11" r="7" />
-            <path d="m16.5 16.5 4.5 4.5" />
+        <Svg size={size} className={className}>
+            <circle cx="7" cy="7" r="4.5" {...line(strokeWidth)} />
+            <path d="m10.5 10.5 3 3" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function PlusIcon({ className }: { className?: string }) {
+export function BellIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M12 5v14M5 12h14" />
+        <Svg size={size} className={className}>
+            <path d="M4 11.5h8l-1.1-1.7V7a2.9 2.9 0 0 0-5.8 0v2.8L4 11.5Z" {...line(strokeWidth)} />
+            <path d="M6.6 13.2a1.5 1.5 0 0 0 2.8 0" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function ArrowRightIcon({ className }: { className?: string }) {
+export function PlusIcon({ size = 13, className, strokeWidth = 1.8 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M5 12h14" />
-            <path d="m13 6 6 6-6 6" />
+        <Svg size={size} className={className}>
+            <path d="M8 3.5v9M3.5 8h9" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function ArrowLeftIcon({ className }: { className?: string }) {
+export function ChevronDownIcon({ size = 14, className, strokeWidth = 1.5 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M19 12H5" />
-            <path d="m11 18-6-6 6-6" />
+        <Svg size={size} className={className}>
+            <path d="m5 6.5 3 3 3-3" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function ChevronDownIcon({ className }: { className?: string }) {
+export function LayersIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="m6 9 6 6 6-6" />
+        <Svg size={size} className={className}>
+            <path d="M8 2 14 5.5 8 9 2 5.5 8 2Z" {...line(strokeWidth)} />
+            <path d="m2 8.5 6 3.5 6-3.5" {...line(strokeWidth)} />
+            <path d="m2 11.5 6 3.5 6-3.5" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function LayersIcon({ className }: { className?: string }) {
+export function CheckCircleIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="m12 2 9 5-9 5-9-5 9-5Z" />
-            <path d="m3 12 9 5 9-5" />
-            <path d="m3 17 9 5 9-5" />
+        <Svg size={size} className={className}>
+            <circle cx="8" cy="8" r="5.8" {...line(strokeWidth)} />
+            <path d="m5.6 8 1.7 1.7 3.1-3.4" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function AlertIcon({ className }: { className?: string }) {
+export function UsersIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-            <path d="M12 9v4" />
-            <path d="M12 17h.01" />
+        <Svg size={size} className={className}>
+            <circle cx="6" cy="6" r="2.4" {...line(strokeWidth)} />
+            <path d="M2 13.4c0-2.1 1.8-3.8 4-3.8s4 1.7 4 3.8" {...line(strokeWidth)} />
+            <path d="M11 4.3a2.3 2.3 0 0 1 0 4.4" {...line(strokeWidth)} />
+            <path d="M12.2 10.2c1.1.6 1.8 1.7 1.8 3.2" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function PenIcon({ className }: { className?: string }) {
+export function ArchiveIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        <Svg size={size} className={className}>
+            <rect x="2.2" y="3" width="11.6" height="3" rx="1" {...line(strokeWidth)} />
+            <path d="M3.2 6v6.4c0 .9.7 1.6 1.6 1.6h6.4c.9 0 1.6-.7 1.6-1.6V6" {...line(strokeWidth)} />
+            <path d="M6.4 9h3.2" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function ScanIcon({ className }: { className?: string }) {
+export function ScanIcon({ size = 15, className, strokeWidth = 1.5 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-            <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-            <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-            <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-            <path d="M7 12h10" />
+        <Svg size={size} className={className}>
+            <path d="M3 6V4a1 1 0 0 1 1-1h2" {...line(strokeWidth)} />
+            <path d="M13 6V4a1 1 0 0 0-1-1h-2" {...line(strokeWidth)} />
+            <path d="M3 10v2a1 1 0 0 0 1 1h2" {...line(strokeWidth)} />
+            <path d="M13 10v2a1 1 0 0 1-1 1h-2" {...line(strokeWidth)} />
+            <path d="M2 8h12" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function LogOutIcon({ className }: { className?: string }) {
+export function FilterIcon({ size = 13, className, strokeWidth = 1.4 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <path d="m16 17 5-5-5-5" />
-            <path d="M21 12H9" />
+        <Svg size={size} className={className}>
+            <path d="M4 5h8M6 8h4M7.5 11h1" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function MusicIcon({ className }: { className?: string }) {
+export function ArrowRightIcon({ size = 13, className, strokeWidth = 1.6 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M9 18V5l12-2v13" />
-            <circle cx="6" cy="18" r="3" />
-            <circle cx="18" cy="16" r="3" />
+        <Svg size={size} className={className}>
+            <path d="M3 8h10" {...line(strokeWidth)} />
+            <path d="m9 4 4 4-4 4" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function ShareIcon({ className }: { className?: string }) {
+export function PlayIcon({ size = 14, className }: IconProps) {
     return (
-        <Svg className={className}>
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <path d="m8.6 13.5 6.8 4" />
-            <path d="m15.4 6.5-6.8 4" />
+        <Svg size={size} className={className} viewBox="0 0 24 24">
+            <path d="M7 4l13 8-13 8z" fill="currentColor" />
         </Svg>
     );
 }
 
-export function CheckIcon({ className }: { className?: string }) {
+export function StopIcon({ size = 14, className }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M20 6 9 17l-5-5" />
+        <Svg size={size} className={className} viewBox="0 0 24 24">
+            <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
         </Svg>
     );
 }
 
-export function XIcon({ className }: { className?: string }) {
+export function SparkleIcon({ size = 15, className }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
+        <Svg size={size} className={className} viewBox="0 0 24 24">
+            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" fill="currentColor" />
         </Svg>
     );
 }
 
-export function ClockIcon({ className }: { className?: string }) {
+export function CloseIcon({ size = 18, className, strokeWidth = 2 }: IconProps) {
     return (
-        <Svg className={className}>
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
+        <Svg size={size} className={className} viewBox="0 0 24 24">
+            <path d="M6 6l12 12M18 6L6 18" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function UsersIcon({ className }: { className?: string }) {
+export function PenIcon({ size = 16, className, strokeWidth = 1.5 }: IconProps) {
     return (
-        <Svg className={className}>
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        <Svg size={size} className={className}>
+            <path d="M10.5 3.2 12.8 5.5 6 12.3l-3 .7.7-3 6.8-6.8Z" {...line(strokeWidth)} />
+            <path d="M9 13h4" {...line(strokeWidth)} />
         </Svg>
     );
 }
 
-export function KeyIcon({ className }: { className?: string }) {
+export function LogOutIcon({ size = 14, className, strokeWidth = 1.5 }: IconProps) {
     return (
-        <Svg className={className}>
-            <circle cx="7.5" cy="15.5" r="4.5" />
-            <path d="m10.5 12.5 9-9" />
-            <path d="m16 7 2 2" />
-            <path d="m13 10 2 2" />
+        <Svg size={size} className={className}>
+            <path d="M6 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2" {...line(strokeWidth)} />
+            <path d="M10 5.5 12.5 8 10 10.5M12.5 8H6.5" {...line(strokeWidth)} />
+        </Svg>
+    );
+}
+
+export function XIcon({ size = 12, className, strokeWidth = 1.6 }: IconProps) {
+    return (
+        <Svg size={size} className={className}>
+            <path d="m4.5 4.5 7 7M11.5 4.5l-7 7" {...line(strokeWidth)} />
         </Svg>
     );
 }

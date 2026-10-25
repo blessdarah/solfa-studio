@@ -1,213 +1,180 @@
-import { Link } from '@inertiajs/react';
-import { ArrowRightIcon, MusicIcon } from '@/components/icons';
+import { Link, router } from '@inertiajs/react';
+import { ArrowRightIcon, ChevronDownIcon, FilterIcon } from '@/components/icons';
 import { KeyBadge } from '@/components/dashboard/key-badge';
+import { SCORE_DRAG_TYPE } from '@/components/dashboard/library-rail';
 import { VoiceChips } from '@/components/dashboard/voice-chips';
 import { dashboardUrl } from '@/lib/dashboard-url';
-import type { DashboardFilters, ScoreSummary } from '@/types';
+import { cn } from '@/lib/utils';
+import type { DashboardFilters, DashboardKind, DashboardProps, DashboardSort, ScoreSummary } from '@/types';
 
-function Meta({ score }: { score: ScoreSummary }) {
+const KIND_CHIPS: { kind: DashboardKind; label: string }[] = [
+    { kind: 'all', label: 'All' },
+    { kind: 'composed', label: 'Composed' },
+    { kind: 'arrangements', label: 'Arrangements' },
+];
+
+const SORTS: { value: DashboardSort; label: string }[] = [
+    { value: 'edited', label: 'Recently edited' },
+    { value: 'title', label: 'Title A–Z' },
+    { value: 'key', label: 'Key' },
+];
+
+function Chips({ filters, kinds }: { filters: DashboardFilters; kinds: DashboardProps['kinds'] }) {
     return (
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-[10.5px] whitespace-nowrap text-pencil">
-            <span className="truncate">
-                {score.composer ?? 'Unknown composer'}
-            </span>
-            <span className="shrink-0 text-rule">·</span>
-            <span className="shrink-0">Doh is {score.doh}</span>
-            <span className="shrink-0 text-rule">·</span>
-            <span className="shrink-0">{score.bars} bars</span>
-            {score.notes_to_check > 0 && (
-                <>
-                    <span className="shrink-0 text-rule">·</span>
-                    <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink">
-                        <span className="size-1.5 rounded-full bg-marker ring-1 ring-ink/10" />
-                        {score.notes_to_check} to check
-                    </span>
-                </>
-            )}
-        </p>
-    );
-}
+        <div className="flex items-center gap-1.5">
+            {KIND_CHIPS.map((chip) => {
+                const active = filters.kind === chip.kind;
 
-function ScoreRows({ scores }: { scores: ScoreSummary[] }) {
-    return (
-        <>
-            <div className="hidden md:block">
-                <div className="grid grid-cols-[40px_minmax(0,1fr)_110px_82px] items-center gap-4 border-b border-rule px-3 pb-2.5">
-                    <span className="text-[9px] font-semibold tracking-[0.13em] text-pencil uppercase">
-                        Key
-                    </span>
-                    <span className="text-[9px] font-semibold tracking-[0.13em] text-pencil uppercase">
-                        Score
-                    </span>
-                    <span className="text-[9px] font-semibold tracking-[0.13em] text-pencil uppercase">
-                        Voices
-                    </span>
-                    <span className="text-right text-[9px] font-semibold tracking-[0.13em] text-pencil uppercase">
-                        Edited
-                    </span>
-                </div>
-
-                {scores.map((score) => (
+                return (
                     <Link
-                        key={score.id}
-                        href={`/scores/${score.id}`}
-                        aria-label={`Open ${score.title}`}
-                        className="group grid h-[62px] grid-cols-[40px_minmax(0,1fr)_110px_82px] items-center gap-4 border-b border-rule px-3 outline-none transition-colors hover:bg-copy/55 focus-visible:bg-copy/55 focus-visible:ring-2 focus-visible:ring-ink/10 focus-visible:ring-inset"
+                        key={chip.kind}
+                        href={dashboardUrl({ ...filters, kind: chip.kind, all: false })}
+                        preserveScroll
+                        preserveState
+                        aria-current={active ? 'true' : undefined}
+                        className={cn(
+                            'flex h-7.5 shrink-0 items-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                            active ? 'bg-ink' : 'border border-rule',
+                        )}
                     >
-                        <KeyBadge
-                            doh={score.doh}
-                            alert={score.needs_review}
-                        />
-
-                        <div className="min-w-0">
-                            <p className="truncate text-[13px] font-semibold tracking-[-0.015em] text-ink">
-                                {score.title}
-                            </p>
-                            <Meta score={score} />
-                        </div>
-
-                        <VoiceChips voices={score.voice_progress} />
-
-                        <span className="text-right text-[10.5px] text-pencil">
-                            {score.updated_human}
+                        <span
+                            className={cn(
+                                'text-[12.5px] leading-4',
+                                active ? 'font-semibold text-paper' : 'font-medium text-ink',
+                            )}
+                        >
+                            {chip.label}
+                        </span>
+                        <span className={cn('font-solfa text-[10.5px] leading-3.5', active ? 'text-paper/55' : 'text-pencil')}>
+                            {kinds[chip.kind]}
                         </span>
                     </Link>
-                ))}
-            </div>
-
-            <div className="md:hidden">
-                {scores.map((score) => (
-                    <Link
-                        key={score.id}
-                        href={`/scores/${score.id}`}
-                        aria-label={`Open ${score.title}`}
-                        className="flex gap-3 border-b border-rule px-1 py-4 outline-none transition-colors hover:bg-copy/55 focus-visible:bg-copy/55"
-                    >
-                        <KeyBadge
-                            doh={score.doh}
-                            alert={score.needs_review}
-                        />
-                        <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                                <p className="min-w-0 truncate text-[13px] font-semibold tracking-[-0.015em] text-ink">
-                                    {score.title}
-                                </p>
-                                <span className="shrink-0 pt-0.5 text-[10px] text-pencil">
-                                    {score.updated_human}
-                                </span>
-                            </div>
-                            <Meta score={score} />
-                            <div className="mt-2.5">
-                                <VoiceChips voices={score.voice_progress} />
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
-        </>
+                );
+            })}
+        </div>
     );
 }
 
-function EmptyState({
-    filtered,
-    onNewScore,
-}: {
-    filtered: boolean;
-    onNewScore: () => void;
-}) {
+function SortMenu({ filters }: { filters: DashboardFilters }) {
     return (
-        <div className="flex flex-col items-center justify-center border-b border-rule px-5 py-16 text-center">
-            <span className="flex size-11 items-center justify-center rounded-full bg-copy">
-                <MusicIcon className="h-4.5 w-4.5 text-pencil" />
+        <label className="relative flex shrink-0 items-center gap-1.75">
+            <FilterIcon className="text-pencil" />
+            <span className="text-[12.5px] leading-4 font-medium text-ink">
+                {SORTS.find((s) => s.value === filters.sort)?.label}
             </span>
-            <h2 className="mt-4 font-display text-[22px] font-bold tracking-[-0.03em] text-ink">
-                {filtered ? 'No scores match' : 'Your library is empty'}
-            </h2>
-            <p className="mt-1.5 max-w-[300px] text-[12px] leading-5 text-pencil">
-                {filtered
-                    ? 'Try another search, or clear the filters to see the whole library.'
-                    : 'Start with a blank score and add the voices as you hear them.'}
-            </p>
-            {filtered ? (
-                <Link
-                    href="/dashboard"
-                    className="mt-5 inline-flex h-9 items-center rounded-full border border-rule px-4 text-[12px] font-semibold text-ink transition hover:bg-copy"
-                >
-                    Clear filters
-                </Link>
-            ) : (
-                <button
-                    type="button"
-                    onClick={onNewScore}
-                    className="mt-5 inline-flex h-9 items-center rounded-full bg-ink px-4 text-[12px] font-semibold text-paper transition hover:bg-ink/85"
-                >
-                    New score
-                </button>
-            )}
-        </div>
+            <ChevronDownIcon size={12} className="text-pencil" />
+            <select
+                value={filters.sort}
+                onChange={(event) =>
+                    router.get(dashboardUrl({ ...filters, sort: event.target.value as DashboardSort }), {}, {
+                        preserveScroll: true,
+                        preserveState: true,
+                    })
+                }
+                aria-label="Sort scores"
+                className="absolute inset-0 cursor-pointer opacity-0"
+            >
+                {SORTS.map((sort) => (
+                    <option key={sort.value} value={sort.value}>
+                        {sort.label}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
+}
+
+function Row({ score }: { score: ScoreSummary }) {
+    return (
+        <Link
+            href={`/scores/${score.id}`}
+            draggable
+            onDragStart={(event) => {
+                event.dataTransfer.setData(SCORE_DRAG_TYPE, score.id);
+                event.dataTransfer.effectAllowed = 'move';
+            }}
+            className="flex h-15.5 shrink-0 items-center gap-4 border-b border-rule outline-none hover:bg-copy/40 focus-visible:bg-copy/60"
+        >
+            <span className="w-10 shrink-0">
+                <KeyBadge doh={score.doh} alert={score.needs_review} />
+            </span>
+            <span className="flex min-w-0 grow basis-0 flex-col gap-0.5">
+                <span className="truncate font-display text-[15px] leading-4.75 font-semibold tracking-[-0.01em] text-ink">
+                    {score.title}
+                </span>
+                <span className="truncate text-[12.5px] leading-4 text-pencil">{score.meta}</span>
+            </span>
+            <VoiceChips voices={score.voice_progress} />
+            <span className="flex w-20 shrink-0 justify-end text-right text-[12px] leading-4 text-pencil">
+                {score.updated_human}
+            </span>
+        </Link>
     );
 }
 
 export function ScoreLedger({
     scores,
     filters,
-    total,
-    filteredTotal,
+    kinds,
     shown,
-    onNewScore,
+    filteredTotal,
+    emptyText,
 }: {
     scores: ScoreSummary[];
     filters: DashboardFilters;
-    total: number;
-    filteredTotal: number;
+    kinds: DashboardProps['kinds'];
     shown: number;
-    onNewScore: () => void;
+    filteredTotal: number;
+    emptyText: string;
 }) {
-    if (scores.length === 0) {
-        return (
-            <div className="mt-6">
-                <EmptyState
-                    filtered={total > 0}
-                    onNewScore={onNewScore}
-                />
-            </div>
-        );
-    }
-
-    const viewAllHref = dashboardUrl({ ...filters, all: true });
-    const fewerHref = dashboardUrl({ ...filters, all: false });
-    const hidden = Math.max(0, filteredTotal - shown);
-
     return (
-        <div className="mt-6">
-            <ScoreRows scores={scores} />
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[10.5px] text-pencil">
-                    {hidden > 0
-                        ? `Showing ${shown} of ${filteredTotal} scores`
-                        : `Showing all ${filteredTotal} ${
-                              filteredTotal === 1 ? 'score' : 'scores'
-                          }`}
-                </p>
-
-                {hidden > 0 ? (
-                    <Link
-                        href={viewAllHref}
-                        className="group inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink"
-                    >
-                        View all {filteredTotal} scores
-                        <ArrowRightIcon className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                    </Link>
-                ) : filters.all && filteredTotal > 8 ? (
-                    <Link
-                        href={fewerHref}
-                        className="text-[11px] font-semibold text-pencil transition hover:text-ink"
-                    >
-                        Show fewer
-                    </Link>
-                ) : null}
+        <>
+            <div className="flex shrink-0 items-center justify-between pt-7">
+                <Chips filters={filters} kinds={kinds} />
+                <SortMenu filters={filters} />
             </div>
-        </div>
+
+            <div className="flex h-8.5 shrink-0 items-center gap-4 border-b border-rule pt-3" aria-hidden="true">
+                <div className="w-10 shrink-0 text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">KEY</div>
+                <div className="min-w-0 grow basis-0 text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">
+                    TITLE &amp; COMPOSER
+                </div>
+                <div className="w-32 shrink-0 text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">VOICES</div>
+                <div className="flex w-20 shrink-0 justify-end text-right text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">
+                    LAST EDITED
+                </div>
+            </div>
+
+            <div className="flex shrink-0 flex-col">
+                {scores.map((score) => (
+                    <Row key={score.id} score={score} />
+                ))}
+                {scores.length === 0 && (
+                    <div className="flex h-15.5 shrink-0 items-center border-b border-rule text-[12.5px] leading-4 text-pencil">
+                        {emptyText}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex shrink-0 items-center justify-between pt-4.5">
+                <div className="text-[12.5px] leading-4 text-pencil">
+                    {filteredTotal === 0
+                        ? 'No scores'
+                        : shown < filteredTotal
+                          ? `Showing ${shown} of ${filteredTotal} scores`
+                          : `Showing all ${filteredTotal} ${filteredTotal === 1 ? 'score' : 'scores'}`}
+                </div>
+                {shown < filteredTotal && (
+                    <Link
+                        href={dashboardUrl({ ...filters, all: true })}
+                        preserveScroll
+                        className="flex items-center gap-1.5 text-ink outline-none focus-visible:underline"
+                    >
+                        <span className="text-[13px] leading-4.5 font-semibold">Open full library</span>
+                        <ArrowRightIcon />
+                    </Link>
+                )}
+            </div>
+        </>
     );
 }

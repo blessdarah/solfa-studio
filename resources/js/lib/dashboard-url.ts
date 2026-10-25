@@ -1,41 +1,40 @@
-import type { DashboardView } from '@/types';
+import type { DashboardFilters } from '@/types';
 
-export type DashboardUrlParams = {
-    view?: DashboardView;
-    key?: string | null;
-    sort?: 'edited' | 'title' | 'key';
-    q?: string;
-    all?: boolean;
-};
-
-export function dashboardUrl({
-    view = 'all',
-    key = null,
-    sort = 'edited',
-    q = '',
-    all = false,
-}: DashboardUrlParams): string {
+/**
+ * Builds a library URL, leaving out anything at its default so links stay
+ * short: /dashboard?view=collection&collection=3&kind=arrangements
+ */
+export function dashboardUrl(filters: Partial<DashboardFilters>): string {
     const search = new URLSearchParams();
+    const view = filters.view ?? 'all';
 
     if (view !== 'all') {
         search.set('view', view);
     }
 
-    if (key) {
-        search.set('key', key);
+    if (view === 'collection' && filters.collection) {
+        search.set('collection', String(filters.collection));
     }
 
-    if (sort !== 'edited') {
-        search.set('sort', sort);
+    if (view === 'rehearsal' && filters.rehearsal) {
+        search.set('rehearsal', String(filters.rehearsal));
     }
 
-    const query = q.trim();
-
-    if (query !== '') {
-        search.set('q', query);
+    if (filters.kind && filters.kind !== 'all') {
+        search.set('kind', filters.kind);
     }
 
-    if (all) {
+    if (filters.sort && filters.sort !== 'edited') {
+        search.set('sort', filters.sort);
+    }
+
+    const q = (filters.q ?? '').trim();
+
+    if (q !== '') {
+        search.set('q', q);
+    }
+
+    if (filters.all) {
         search.set('all', '1');
     }
 
