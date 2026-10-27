@@ -5,7 +5,9 @@ import { NotePalette, TextPalette } from '@/components/editor/palettes';
 import type { NoteAction, TextAction } from '@/components/editor/palettes';
 import { ScoreRail } from '@/components/editor/score-rail';
 import { Sheet } from '@/components/editor/sheet';
-import type { LyricCursor } from '@/components/editor/sheet';
+import type { BarToolActions, LyricCursor } from '@/components/editor/sheet';
+import { DeletePartDialog } from '@/components/editor/delete-part-dialog';
+import { PrintView } from '@/components/editor/print-view';
 import { EditorTopBar } from '@/components/editor/editor-top-bar';
 import { TempoPopover } from '@/components/editor/tempo-popover';
 import { Toast } from '@/components/toast';
@@ -13,37 +15,45 @@ import { useAutosave, useSavedLabel } from '@/lib/autosave';
 import {
     addMark,
     addPart,
+    clearPart,
+    partContents,
+    removePart,
+    insertBars,
+    duplicateBar,
+    deleteBar,
+    restPart,
+    bringBackPart,
     addSection,
     addVerse,
     applyBars,
     applyMapChange,
-    chromatic,
     clearAt,
     copyRhythm,
     cycleDynamic,
-    halfBeat,
-    hold,
-    markDone,
-    nextBeat,
     nextSlot,
-    noteEndingAt,
+    nextSpot,
+    noteCovering,
     noteStarts,
     previousBeat,
     previousSlot,
+    previousSpot,
     repeatBars,
-    setNote,
+    setBarPass,
     setSyllable,
-    shiftOctave,
     syllableAt,
     toggleNav,
     wordsPart,
 } from '@/lib/editor';
 import type { Cursor, MapChange } from '@/lib/editor';
-import { beatsInBar, noteAt, partOf, tempoAt, VOICES } from '@/lib/music';
+import { VOICE_NAMES, beatsInBar, layoutLines, lineOf, noteAt, partOf, performanceOrder, tempoAt, VOICES } from '@/lib/music';
+import type { PlayStep } from '@/lib/music';
 import { audio } from '@/lib/tone';
 import { play } from '@/lib/player';
+import { placeWords, wordsStart } from '@/lib/lyrics';
+import { press, typeLine } from '@/lib/typing';
+import type { Typed, TypingAction } from '@/lib/typing';
 import type { Playback } from '@/lib/player';
-import type { Bar, ComposeProps, EditorMode, Octave, Pitch, ScoreDocument, SyllableJoin, Voice, WordsUnder } from '@/types';
+import type { Bar, ComposeProps, EditorMode, Pitch, ScoreDocument, SyllableJoin, Voice, WordsUnder } from '@/types';
 
 function xsrf(): string {
     const match = document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='));
@@ -112,9 +122,11 @@ export default function ScoreShow(props: ComposeProps) {
     });
     const [mapBar, setMapBar] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    const [deletingPart, setDeletingPart] = useState<Voice | null>(null);
+    const [printing, setPrinting] = useState(false);
     const [suggesting, setSuggesting] = useState(false);
     const [playback, setPlayback] = useState<Playback | null>(null);
-    const [playingBar, setPlayingBar] = useState<number | null>(null);
+    const [playingStep, setPlayingStep] = useState<PlayStep | null>(null);
     const [heardChoice, setHeardChoice] = useState<Voice[]>(VOICES);
     const scroller = useRef<HTMLDivElement>(null);
 
@@ -162,67 +174,95 @@ export default function ScoreShow(props: ComposeProps) {
 
     // ------------------------------------------------------------ notes
 
-    const advance = (from: Cursor, document: ScoreDocument) => {
-        const next = nextBeat(document, from);
-
-        if (next.bar !== from.bar) {
-            const done = markDone(document, from.part, from.bar);
-            if (done !== document) commit(done);
-        }
-
-        setCursor(next);
-    };
-
-    /** New notes take the octave of the note before them. */
-    const octaveFor = (c: Cursor): Octave => {
-        const part = partOf(doc, c.part);
-        const bar = part?.bars[c.bar - 1];
-        const previous = (bar && noteEndingAt(bar.notes, c.beat)) ?? noteAt(part, c.bar, Math.max(0, c.beat - 1));
-
-        if (previous && previous.pitch !== 'rest') return previous.octave;
-
-        for (let b = c.bar - 1; b >= 1; b--) {
-            const last = part?.bars[b - 1]?.notes.at(-1);
-            if (last && last.pitch !== 'rest') return last.octave;
-        }
-
-        return c.part === 'B' ? -1 : 0;
-    };
+    /** The note just typed (see lib/typing): ".", the octave and fe/ta keys act on it after the cursor moves on. */
+    const typed = useRef<Typed>(null);
 
     const onNote = (action: NoteAction) => {
         if (!canEdit && action.type !== 'next') return;
 
-        switch (action.type) {
-            // Typing stays on this beat so "." can split it; only Tab moves on.
-            case 'pitch':
-                commit(setNote(doc, cursor, action.pitch, octaveFor(cursor)));
-                break;
-            case 'octave':
-                commit(shiftOctave(doc, cursor, action.by));
-                break;
-            case 'chromatic':
-                commit(chromatic(doc, cursor, action.direction));
-                break;
-            case 'hold':
-                commit(hold(doc, cursor));
-                break;
-            case 'half': {
-                const result = halfBeat(doc, cursor);
-                commit(result.document);
-                setCursor(result.cursor);
-                break;
-            }
-            case 'rest':
-                commit(clearAt(doc, cursor));
-                break;
-            case 'next':
-                advance(cursor, doc);
-                break;
+        const state = press({ document: doc, cursor, typed: typed.current }, action);
+        const beats = beatsInBar(state.document.map, state.cursor.bar);
+
+        commit(state.document);
+
+        // At the very end of the score, stay on the last note written.
+        if (state.cursor.beat >= beats - 1e-6) {
+            typed.current = null;
+            setCursor(state.typed?.note ?? cursor);
+        } else {
+            typed.current = state.typed;
+            setCursor(state.cursor);
         }
     };
 
+    /** "Type a line": write a whole phrase into the cursor's part from the cursor on. */
+    const onLine = (actions: TypingAction[]) => {
+        if (!canEdit) return;
+
+        const result = typeLine(doc, cursor, actions);
+        commit(result.document);
+        typed.current = null;
+
+        const beats = beatsInBar(result.document.map, result.cursor.bar);
+        setCursor(result.cursor.beat >= beats - 1e-6 ? { ...result.cursor, beat: beats - 1 } : result.cursor);
+    };
+
+    /** Hovering a bar on the sheet: add, copy or delete bars (Paper W7). The cursors follow their bars. */
+    const barTools: BarToolActions = {
+        onInsert: (at) => {
+            const next = insertBars(doc, at, 1);
+            if (next === doc) return;
+            commit(next);
+            setMapBar(null);
+            if (cursor.bar >= at) setCursor({ ...cursor, bar: cursor.bar + 1 });
+            if (lyric.bar >= at) setLyric({ ...lyric, bar: lyric.bar + 1 });
+        },
+        onDuplicate: (bar) => {
+            const next = duplicateBar(doc, bar);
+            if (next === doc) return;
+            commit(next);
+            setMapBar(null);
+            if (cursor.bar > bar) setCursor({ ...cursor, bar: cursor.bar + 1 });
+            if (lyric.bar > bar) setLyric({ ...lyric, bar: lyric.bar + 1 });
+        },
+        onDelete: (bar) => {
+            const next = deleteBar(doc, bar);
+            if (next === doc) return;
+            commit(next);
+            setMapBar(null);
+            typed.current = null;
+            const moved = (b: number) => Math.min(next.bars, b > bar ? b - 1 : b);
+            setCursor({ ...cursor, bar: moved(cursor.bar), beat: cursor.bar === bar ? 0 : cursor.beat });
+            setLyric({ ...lyric, bar: moved(lyric.bar), beat: lyric.bar === bar ? (noteStarts(next, lyric.part, moved(lyric.bar))[0] ?? 0) : lyric.beat });
+            setToast(`Bar ${bar} deleted. ⌘Z brings it back.`);
+        },
+    };
+
+    const closePrint = useCallback(() => setPrinting(false), []);
+    const closeDeleting = useCallback(() => setDeletingPart(null), []);
+
+    /** Take a part out; if the cursor was in it, move to the first part left. */
+    const deletePart = (voice: Voice) => {
+        const next = removePart(doc, voice);
+        if (next === doc) return;
+
+        commit(next);
+        setDeletingPart(null);
+        typed.current = null;
+
+        const fallback = next.parts[0]?.id ?? 'S';
+        if (cursor.part === voice) setCursor({ ...cursor, part: fallback });
+        if (lyric.part === voice) setLyric({ ...lyric, part: wordsPart(next, fallback) });
+        setToast(`${VOICE_NAMES[voice]} part deleted. ⌘Z brings it back.`);
+    };
+
     const rhythmFrom: Voice = cursor.part === 'S' ? 'A' : 'S';
-    const systemStart = Math.floor((cursor.bar - 1) / 4) * 4 + 1;
+    // Lines hold as many bars as fit, so find them from the layout rather than counting fours.
+    const lines = useMemo(() => layoutLines(doc), [doc]);
+    const lineIndex = Math.max(0, lines.findIndex((l) => l.bars.includes(cursor.bar)));
+    const systemStart = lines[lineIndex]?.bars[0] ?? 1;
+    const previousLine = lineIndex > 0 ? lines[lineIndex - 1].bars : null;
+    const lineStartOf = (bar: number) => lineOf(lines, bar)?.bars[0] ?? 1;
 
     const copyRhythmHere = () => {
         if (!partOf(doc, rhythmFrom)) return;
@@ -230,8 +270,8 @@ export default function ScoreShow(props: ComposeProps) {
     };
 
     const repeatHere = () => {
-        if (systemStart - 4 < 1) return;
-        commit(repeatBars(doc, cursor.part, systemStart - 4, 4, systemStart));
+        if (!previousLine) return;
+        commit(repeatBars(doc, cursor.part, previousLine[0], previousLine.length, systemStart));
     };
 
     const suggest = async () => {
@@ -266,7 +306,7 @@ export default function ScoreShow(props: ComposeProps) {
     // ------------------------------------------------------------ words
 
     const ensureVerse = (document: ScoreDocument): ScoreDocument =>
-        document.verses.length > 0 ? document : addVerse(document, 'tw', 'Verse 1');
+        document.verses.length > 0 ? document : addVerse(document, 'en', 'Verse 1');
 
     const currentSyllable = () => syllableAt(doc, lyric.verse, lyric.part, lyric.bar, lyric.beat);
 
@@ -409,14 +449,19 @@ export default function ScoreShow(props: ComposeProps) {
     const start = (document: ScoreDocument, fromBar: number, toBar?: number) => {
         playback?.stop();
 
-        const p = play(document, doh, fromBar, toBar, heard);
+        // A preview plays straight through; Play follows D.S., Fine and the 1st / D.S.-time bars.
+        const steps: PlayStep[] =
+            toBar === undefined
+                ? performanceOrder(document, fromBar)
+                : Array.from({ length: Math.max(0, Math.min(toBar, document.bars) - fromBar + 1) }, (_, i) => ({ bar: fromBar + i, pass: 1 }));
+        const p = play(document, doh, steps, heard);
         setPlayback(p);
 
         const ms = Math.max(0, (p.endsAt - audio().currentTime) * 1000);
         window.setTimeout(() => setPlayback((current) => (current === p ? null : current)), Math.min(ms + 400, 60 * 60 * 1000));
     };
 
-    const playFrom = mapBar !== null ? Math.max(1, mapBar - 1) : mode === 'lyrics' ? Math.floor((lyric.bar - 1) / 4) * 4 + 1 : systemStart;
+    const playFrom = mapBar !== null ? Math.max(1, mapBar - 1) : mode === 'lyrics' ? lineStartOf(lyric.bar) : systemStart;
     const playLabel = mode === 'lyrics' && mapBar === null ? 'Play with words' : `Play from bar ${playFrom}`;
 
     useEffect(() => () => playback?.stop(), [playback]);
@@ -455,10 +500,17 @@ export default function ScoreShow(props: ComposeProps) {
 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (isTyping(event.target)) return;
+            if (isTyping(event.target) || deletingPart || printing) return;
 
             const meta = event.metaKey || event.ctrlKey;
             const key = event.key;
+
+            // ⌘P opens our print view (pages laid out for paper) instead of printing the editor.
+            if (meta && key.toLowerCase() === 'p') {
+                event.preventDefault();
+                setPrinting(true);
+                return;
+            }
 
             if (meta && key.toLowerCase() === 'z') {
                 event.preventDefault();
@@ -509,22 +561,49 @@ export default function ScoreShow(props: ComposeProps) {
                     onNote({ type: 'hold' });
                 } else if (key === '.') {
                     onNote({ type: 'half' });
-                } else if (key.toLowerCase() === 'x') {
-                    onNote({ type: 'rest' });
-                } else if (key === 'Tab' || key === 'ArrowRight') {
+                } else if (key === '3') {
+                    onNote({ type: 'triplet' });
+                } else if (key.toLowerCase() === 'x' || key === ' ') {
                     event.preventDefault();
+                    onNote({ type: 'rest' });
+                } else if (key === 'Tab') {
+                    event.preventDefault();
+                    typed.current = null;
                     if (event.shiftKey) setCursor(previousBeat(doc, cursor));
                     else onNote({ type: 'next' });
+                } else if (key === 'ArrowRight') {
+                    // Arrows step note by note, into halves and quarters (the "t" of "d.t").
+                    event.preventDefault();
+                    typed.current = null;
+                    setCursor(nextSpot(doc, cursor));
                 } else if (key === 'ArrowLeft') {
                     event.preventDefault();
-                    setCursor(previousBeat(doc, cursor));
-                } else if (key === 'Backspace' || key === 'Delete') {
+                    typed.current = null;
+                    setCursor(previousSpot(doc, cursor));
+                } else if (key === 'Backspace') {
+                    // Like text: remove the note just behind the cursor, wherever in the beat it
+                    // starts (".s" included), and put the cursor where it was.
                     event.preventDefault();
-                    const back = previousBeat(doc, cursor);
-                    const here = partOf(doc, cursor.part)?.bars[cursor.bar - 1]?.notes.some((n) => Math.abs(n.start - cursor.beat) < 1e-6);
-                    const target = here ? cursor : back;
-                    if (canEdit) commit(clearAt(doc, target));
-                    setCursor(target);
+                    const part = partOf(doc, cursor.part);
+                    let target: Cursor | null = null;
+
+                    for (let b = cursor.bar; b >= 1 && target === null; b--) {
+                        const before = (part?.bars[b - 1]?.notes ?? []).filter((n) => b < cursor.bar || n.start < cursor.beat - 1e-6);
+                        const last = before.reduce<(typeof before)[number] | undefined>((a, n) => (!a || n.start > a.start ? n : a), undefined);
+                        if (last) target = { ...cursor, bar: b, beat: last.start };
+                    }
+
+                    if (target === null) {
+                        setCursor(previousBeat(doc, cursor));
+                    } else {
+                        if (canEdit) commit(clearAt(doc, target));
+                        setCursor(target);
+                    }
+                } else if (key === 'Delete') {
+                    // Remove the note under the cursor (or the one held over it) and stay put.
+                    event.preventDefault();
+                    const covering = noteCovering(partOf(doc, cursor.part)?.bars[cursor.bar - 1]?.notes ?? [], cursor.beat);
+                    if (canEdit && covering) commit(clearAt(doc, { ...cursor, beat: covering.start }));
                 }
 
                 return;
@@ -563,7 +642,7 @@ export default function ScoreShow(props: ComposeProps) {
     });
 
     // Keep the line being written in view.
-    const activeSystem = mode === 'lyrics' ? Math.floor((lyric.bar - 1) / 4) * 4 + 1 : systemStart;
+    const activeSystem = mode === 'lyrics' ? lineStartOf(lyric.bar) : systemStart;
     useEffect(() => {
         scroller.current?.querySelector(`[data-system="${activeSystem}"]`)?.scrollIntoView({ block: 'nearest' });
     }, [activeSystem]);
@@ -602,7 +681,7 @@ export default function ScoreShow(props: ComposeProps) {
                     mode={mode}
                     onMode={switchMode}
                     playLabel={playLabel}
-                    stopLabel={playingBar !== null ? `Stop · bar ${playingBar}` : 'Stop'}
+                    stopLabel={playingStep ? `Stop · bar ${playingStep.bar}${playingStep.pass === 2 ? ' · D.S.' : ''}` : 'Stop'}
                     playing={playback !== null}
                     onPlay={() => (playback ? stop() : start(doc, playFrom))}
                     parts={partIds}
@@ -610,6 +689,7 @@ export default function ScoreShow(props: ComposeProps) {
                     onHeard={changeHeard}
                     activePart={mode === 'lyrics' ? lyric.part : cursor.part}
                     onShare={share}
+                    onPrint={() => setPrinting(true)}
                     canShare={props.is_owner}
                 />
 
@@ -629,6 +709,16 @@ export default function ScoreShow(props: ComposeProps) {
                             }
                         }}
                         onAddPart={() => missing[0] && commit(addPart(doc, missing[0]))}
+                        onClearPart={(voice) => {
+                            commit(clearPart(doc, voice));
+                            setToast(`${VOICE_NAMES[voice]} notes cleared. ⌘Z brings them back.`);
+                        }}
+                        onDeletePart={(voice) => {
+                            // A part with nothing in it goes straight away; otherwise confirm first.
+                            const { bars, syllables } = partContents(doc, voice);
+                            if (bars === 0 && syllables === 0) deletePart(voice);
+                            else setDeletingPart(voice);
+                        }}
                         onSection={(bar) => {
                             setCursor({ ...cursor, bar, beat: 0 });
                             setLyric({ ...lyric, bar, beat: noteStarts(doc, lyric.part, bar)[0] ?? 0 });
@@ -653,6 +743,8 @@ export default function ScoreShow(props: ComposeProps) {
                                 lyricCursor={lyric}
                                 canEdit={canEdit}
                                 onCell={(part, bar, beat) => {
+                                    // A click picks that exact note; the octave keys then act on it.
+                                    typed.current = null;
                                     setMapBar(null);
                                     setCursor({ part, bar, beat });
                                 }}
@@ -660,7 +752,13 @@ export default function ScoreShow(props: ComposeProps) {
                                 onBarNumber={(bar) => canEdit && setMapBar(bar)}
                                 popoverBar={mapBar}
                                 playback={playback}
-                                onPlayingBar={setPlayingBar}
+                                onPlayingBar={setPlayingStep}
+                                onRest={(part, bars) => {
+                                    commit(restPart(doc, part, bars));
+                                    setToast(`${VOICE_NAMES[part]} rests in bar${bars.length > 1 ? 's' : ''} ${bars.join(', ')}. ⌘Z brings it back.`);
+                                }}
+                                onBringBack={(part, bars) => commit(bringBackPart(doc, part, bars))}
+                                barTools={canEdit ? barTools : undefined}
                                 popover={
                                     mapBar !== null ? (
                                         <TempoPopover
@@ -702,6 +800,15 @@ export default function ScoreShow(props: ComposeProps) {
                             onSuggest={suggest}
                             onCopyRhythm={copyRhythmHere}
                             onRepeat={repeatHere}
+                            previousLine={previousLine}
+                            onNav={(value) => {
+                                // One $ sign, one D.S. and one Fine per score: setting it here moves it.
+                                const here = doc.marks.some((m) => m.kind === 'nav' && m.value === value && m.at.bar === cursor.bar);
+                                const others = { ...doc, marks: doc.marks.filter((m) => !(m.kind === 'nav' && m.value === value && m.at.bar !== cursor.bar)) };
+                                commit(here ? toggleNav(doc, cursor.bar, value) : toggleNav(others, cursor.bar, value));
+                            }}
+                            onPass={(pass) => commit(setBarPass(doc, cursor.bar, pass))}
+                            onLine={onLine}
                         />
                     ) : (
                         <LyricsInspector
@@ -720,10 +827,43 @@ export default function ScoreShow(props: ComposeProps) {
                                 commit(next);
                                 setLyric({ ...lyric, verse: next.verses.length - 1 });
                             }}
+                            onWords={(tokens) => {
+                                const base = ensureVerse(doc);
+                                const start = wordsStart(base, lyric.verse, lyric.part, lyric);
+                                if (!start) return;
+                                const result = placeWords(base, lyric.verse, lyric.part, start, tokens);
+                                commit(result.document);
+
+                                // Carry on from the note after the last syllable placed.
+                                const end = result.end;
+                                const after = end ? nextSlot(result.document, lyric.part, end.bar, end.beat) : null;
+                                if (end) setLyric({ ...lyric, ...(after ?? end) });
+                            }}
                         />
                     )}
                 </div>
             </div>
+
+            {printing && (
+                <PrintView
+                    document={doc}
+                    title={score.title}
+                    composer={score.composer}
+                    arranger={score.arranger}
+                    doh={doh}
+                    onClose={closePrint}
+                />
+            )}
+
+            {deletingPart && (
+                <DeletePartDialog
+                    document={doc}
+                    voice={deletingPart}
+                    title={score.title}
+                    onCancel={closeDeleting}
+                    onDelete={() => deletePart(deletingPart)}
+                />
+            )}
 
             <Toast message={toast} onClose={() => setToast(null)} />
         </>

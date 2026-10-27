@@ -105,21 +105,22 @@ export function soundsLike(note: Pick<Note, 'pitch' | 'octave'>, doh: string): s
     return names[((midi % 12) + 12) % 12];
 }
 
-/** "s" + low octave → "s₁"; high → "s'". */
-export function noteLabel(note: Pick<Note, 'pitch' | 'octave'>): string {
+/** "s" + low octave → "s₁", two below → "s₂"; high → "s'", two above → "s''". */
+export function noteLabel(note: Pick<Note, 'pitch' | 'octave'> & { tie?: boolean }): string {
+    // A note held over from the bar before is written as a hold.
+    if (note.tie) {
+        return '–';
+    }
+
     if (note.pitch === 'rest') {
         return '';
     }
 
-    if (note.octave === -1) {
-        return `${note.pitch}₁`;
+    if (note.octave < 0) {
+        return `${note.pitch}${note.octave === -2 ? '₂' : '₁'}`;
     }
 
-    if (note.octave === 1) {
-        return `${note.pitch}'`;
-    }
-
-    return note.pitch;
+    return note.pitch + "'".repeat(note.octave);
 }
 
 const EPS = 1e-6;
@@ -140,7 +141,40 @@ export function halfBarAt(beats: number): number | null {
 /**
  * What happens inside one beat: e.g. "m", "–", "–.l", "m.r", "d,r.m,f".
  */
+/** A third of a beat, for triplets. */
+export const THIRD = 1 / 3;
+
+/** Is `at` a third or two-thirds of the way through its beat? */
+export function onThird(at: number): boolean {
+    const frac = at - Math.floor(at + EPS);
+
+    return Math.abs(frac - THIRD) < 1e-4 || Math.abs(frac - 2 * THIRD) < 1e-4;
+}
+
+/** A beat split into three (a triplet: f,f,f) — some note starts on a third of it. */
+function isTriplet(notes: Note[], beat: number, cursorAt?: number): boolean {
+    const third = (at: number) => at > beat + EPS && at < beat + 1 - EPS && onThird(at);
+
+    return notes.some((n) => third(n.start)) || (cursorAt !== undefined && third(cursorAt));
+}
+
+/** What sits at `at` inside a triplet: the note starting there, "–" for one held over it, or nothing. */
+function thirdText(notes: Note[], at: number): string {
+    const starting = notes.find((n) => Math.abs(n.start - at) < 1e-4);
+
+    if (starting) return noteLabel(starting);
+
+    const held = notes.find((n) => n.start < at - 1e-4 && n.start + n.length > at + 1e-4);
+
+    return held && held.pitch !== 'rest' ? '–' : '';
+}
+
 function beatToken(notes: Note[], beat: number): string {
+    // Thirds: "f,f,f", "d,–,r".
+    if (isTriplet(notes, beat)) {
+        return [0, THIRD, 2 * THIRD].map((o) => thirdText(notes, beat + o)).join(',');
+    }
+
     let token = '';
 
     for (const offset of [0, 0.25, 0.5, 0.75]) {
@@ -148,7 +182,9 @@ function beatToken(notes: Note[], beat: number): string {
         const starting = notes.find((n) => Math.abs(n.start - at) < EPS);
 
         if (starting) {
-            const sep = offset === 0 ? '' : offset === 0.5 ? '.' : ',';
+            // ".," marks the last quarter after a note held through the half: d.,r
+            const afterHeldHalf = offset === 0.75 && !notes.some((n) => Math.abs(n.start - (beat + 0.5)) < EPS);
+            const sep = offset === 0 ? '' : offset === 0.5 ? '.' : afterHeldHalf ? '.,' : ',';
             token += sep + noteLabel(starting);
             continue;
         }
@@ -184,6 +220,65 @@ function pieces(tokens: string[], beats: number, padTo: number): { sep: string; 
 
 function tokensOf(notes: Note[], beats: number): string[] {
     return Array.from({ length: beats }, (_, beat) => beatToken(notes, beat));
+}
+
+/**
+ * One piece of a bar's sol-fa text. `slot` pieces are places the cursor can
+ * sit (a note, a "–" hold, or an empty beat) and carry the beat they are at;
+ * `sep` and `pad` are the ":" "¦" "." "," marks and alignment spaces.
+ */
+export type BarSegment = { kind: 'slot' | 'sep' | 'pad'; text: string; at: number };
+
+const INNER_SEP = (offset: number, halfTaken: boolean) => (offset === 0.5 ? '.' : offset === 0.75 && !halfTaken ? '.,' : ',');
+
+/**
+ * The bar as clickable pieces, so a note inside a beat (the "t" of "d.t")
+ * can be clicked and given the cursor. Joined, the text is exactly
+ * formatBar's. With `cursorAt` on an empty spot inside a beat (just after
+ * "."), an empty slot is added there so the cursor has somewhere to show.
+ */
+export function barSegments(notes: Note[], beats: number, cursorAt?: number): BarSegment[] {
+    const half = halfBarAt(beats);
+    const out: BarSegment[] = [];
+
+    for (let beat = 0; beat < beats; beat++) {
+        if (beat > 0) out.push({ kind: 'sep', text: half !== null && beat === half ? '¦ ' : ':', at: beat });
+
+        const startOfBeat = out.length;
+
+        if (isTriplet(notes, beat, cursorAt)) {
+            [0, THIRD, 2 * THIRD].forEach((o, i) => {
+                if (i > 0) out.push({ kind: 'sep', text: ',', at: beat + o });
+                out.push({ kind: 'slot', text: thirdText(notes, beat + o), at: beat + o });
+            });
+        }
+
+        for (const offset of isTriplet(notes, beat, cursorAt) ? [] : [0, 0.25, 0.5, 0.75]) {
+            const at = beat + offset;
+            const starting = notes.find((n) => Math.abs(n.start - at) < EPS);
+            const halfTaken = notes.some((n) => Math.abs(n.start - (beat + 0.5)) < EPS);
+
+            if (offset === 0) {
+                const held = notes.find((n) => n.start < at - EPS && n.start + n.length > at + EPS);
+                const text = starting ? noteLabel(starting) : held && held.pitch !== 'rest' ? '–' : '';
+                out.push({ kind: 'slot', text, at });
+                continue;
+            }
+
+            if (starting || (cursorAt !== undefined && Math.abs(cursorAt - at) < EPS)) {
+                out.push({ kind: 'sep', text: INNER_SEP(offset, halfTaken), at });
+                out.push({ kind: 'slot', text: starting ? noteLabel(starting) : '', at });
+            }
+        }
+
+        const length = out.slice(startOfBeat).reduce((n, seg) => n + [...seg.text].length, 0);
+        const isLast = beat === beats - 1;
+        const width = half !== null && beat + 1 === half ? 3 : 2;
+
+        if (!isLast && length < width) out.push({ kind: 'pad', text: ' '.repeat(width - length), at: beat });
+    }
+
+    return out;
 }
 
 /** One bar of one part as sol-fa text. */
@@ -367,4 +462,136 @@ export function systemsOf(bars: number, perSystem = 4): number[][] {
     }
 
     return systems;
+}
+
+// ------------------------------------------------------------ jumps & passes
+
+/** 1 = first time through, 2 = after going back with D.S. (or D.C.). */
+export type Pass = 1 | 2;
+
+export type PlayStep = { bar: number; pass: Pass };
+
+/** The pass a bar is limited to ("1st time" or "D.S. time"), or null if it always plays. */
+export function barPass(document: ScoreDocument, bar: number): Pass | null {
+    const section = document.sections.find((s) => s.ending !== null && bar >= s.from && bar <= s.to);
+
+    return section ? (section.ending === 1 ? 1 : 2) : null;
+}
+
+function navAt(document: ScoreDocument, bar: number, value: string): boolean {
+    return document.marks.some((m) => m.kind === 'nav' && m.value === value && m.at.bar === bar);
+}
+
+/**
+ * The bars in the order they are sung, from `fromBar`: at a D.S. go back
+ * to the $ sign (D.C.: to the start), skip "1st time" bars on the way
+ * back and play the "D.S. time" bars instead, and stop at Fine.
+ */
+export function performanceOrder(document: ScoreDocument, fromBar: number): PlayStep[] {
+    const steps: PlayStep[] = [];
+    const segno = document.marks.find((m) => m.kind === 'nav' && m.value === '$')?.at.bar ?? 1;
+    let pass: Pass = barPass(document, fromBar) === 2 ? 2 : 1;
+    let bar = fromBar;
+
+    while (bar <= document.bars && steps.length < document.bars * 3) {
+        const only = barPass(document, bar);
+
+        if (only !== null && only !== pass) {
+            bar++;
+            continue;
+        }
+
+        steps.push({ bar, pass });
+
+        if (pass === 1 && (navAt(document, bar, 'DS') || navAt(document, bar, 'DC'))) {
+            pass = 2;
+            bar = navAt(document, bar, 'DS') ? segno : 1;
+            continue;
+        }
+
+        if (pass === 2 && navAt(document, bar, 'Fine')) {
+            break;
+        }
+
+        bar++;
+    }
+
+    return steps;
+}
+
+// ------------------------------------------------------------ line layout
+
+/** The sheet's measures: a bar is at least 165px; a line holds 660px of bars. */
+export const BAR_MIN_WIDTH = 165;
+export const LINE_WIDTH = 660;
+
+const BAR_PAD = 10; // left padding inside a bar
+const CHIP_ROOM = 22; // the cursor chip's outline and caret
+const SOLFA_CHAR = 14 * 0.6; // JetBrains Mono at 14px
+const WORD_CHAR = 6.6; // Inter italic at 13px, roughly
+
+/** How wide bar `barNo` must be for its busiest part (or line of words) to fit at full size. */
+/** Bar sizing: the narrowest a bar may be, and room kept for the cursor chip (none on paper). */
+export type BarSizing = { min?: number; chip?: number };
+
+export function barWidth(document: ScoreDocument, barNo: number, sizing: BarSizing = {}): number {
+    const beats = beatsInBar(document.map, barNo);
+    const notes = Math.max(0, ...document.parts.map((p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length));
+    const words = Math.max(
+        0,
+        ...document.verses.flatMap((v) =>
+            VOICES.map((voice) => formatWords(v.syllables.filter((s) => s.part === voice && s.bar === barNo).sort((a, b) => a.beat - b.beat)).length),
+        ),
+    );
+    const needed = BAR_PAD + Math.max(notes * SOLFA_CHAR + (sizing.chip ?? CHIP_ROOM), words * WORD_CHAR + 12) + 6;
+
+    return Math.max(sizing.min ?? BAR_MIN_WIDTH, Math.ceil(needed));
+}
+
+export type SheetLine = { bars: number[]; widths: number[] };
+
+/**
+ * Bars laid out in lines like a printed score: each bar as wide as its
+ * music needs (never under 165px); when the next bar won't fit, the line
+ * ends and that bar starts the next one. A line that ends early is spread
+ * to the full width; the last line keeps its natural widths.
+ */
+export function layoutLines(document: ScoreDocument, lineWidth = LINE_WIDTH, sizing: BarSizing = {}): SheetLine[] {
+    const lines: SheetLine[] = [];
+    let line: SheetLine = { bars: [], widths: [] };
+    let used = 0;
+
+    for (let bar = 1; bar <= document.bars; bar++) {
+        const width = Math.min(lineWidth, barWidth(document, bar, sizing));
+
+        if (line.bars.length > 0 && used + width > lineWidth) {
+            lines.push(line);
+            line = { bars: [], widths: [] };
+            used = 0;
+        }
+
+        line.bars.push(bar);
+        line.widths.push(width);
+        used += width;
+    }
+
+    if (line.bars.length > 0) lines.push(line);
+
+    return lines.map((l, i) => {
+        const total = l.widths.reduce((a, b) => a + b, 0);
+        const last = i === lines.length - 1;
+
+        if (last || total >= lineWidth) return l;
+
+        const extra = lineWidth - total;
+        const widths = l.widths.map((w) => Math.floor(w + (extra * w) / total));
+        widths[widths.length - 1] += lineWidth - widths.reduce((a, b) => a + b, 0);
+
+        return { ...l, widths };
+    });
+}
+
+/** The line that bar `bar` is printed on. */
+export function lineOf(lines: SheetLine[], bar: number): SheetLine | undefined {
+    return lines.find((l) => l.bars.includes(bar));
 }

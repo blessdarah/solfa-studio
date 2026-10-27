@@ -32,6 +32,7 @@ export function EditorTopBar({
     activePart,
     onShare,
     canShare,
+    onPrint,
 }: {
     user: User;
     title: string;
@@ -48,6 +49,7 @@ export function EditorTopBar({
     activePart: Voice;
     onShare: () => void;
     canShare: boolean;
+    onPrint: () => void;
 }) {
     return (
         <header className="flex h-15 shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
@@ -103,6 +105,22 @@ export function EditorTopBar({
                     onHeard={onHeard}
                     activePart={activePart}
                 />
+                <button
+                    type="button"
+                    onClick={onPrint}
+                    aria-label="Print"
+                    title="Print (⌘ P)"
+                    className="flex size-9 items-center justify-center rounded-full bg-copy text-ink outline-none hover:bg-rule focus-visible:ring-2 focus-visible:ring-ink/20"
+                >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path
+                            d="M4.5 6V2.5h7V6M4.5 11.5h-1A1.5 1.5 0 0 1 2 10V7.5A1.5 1.5 0 0 1 3.5 6h9A1.5 1.5 0 0 1 14 7.5V10a1.5 1.5 0 0 1-1.5 1.5h-1M4.5 9.5h7v4h-7z"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                </button>
                 {canShare && (
                     <button
                         type="button"

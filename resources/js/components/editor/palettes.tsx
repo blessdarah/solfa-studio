@@ -72,6 +72,7 @@ export type NoteAction =
     | { type: 'chromatic'; direction: 'up' | 'down' }
     | { type: 'hold' }
     | { type: 'half' }
+    | { type: 'triplet' }
     | { type: 'rest' }
     | { type: 'next' };
 
@@ -96,18 +97,25 @@ export function NotePalette({ current, onAction }: { current: Pitch | null; onAc
             </div>
             <Divider />
             <div className="flex gap-1">
-                <Key label="x₁" hint="," title="Lower octave" onPress={() => onAction({ type: 'octave', by: -1 })} />
-                <Key label="x'" hint="'" title="Higher octave" onPress={() => onAction({ type: 'octave', by: 1 })} />
+                <Key label="x₁" hint="," title="Lower octave (press twice for two: d₂)" onPress={() => onAction({ type: 'octave', by: -1 })} />
+                <Key label="x'" hint="'" title="Higher octave (press twice for two: d'')" onPress={() => onAction({ type: 'octave', by: 1 })} />
                 <Key label="fe" hint="↑" title="Sharpen fah" onPress={() => onAction({ type: 'chromatic', direction: 'up' })} />
                 <Key label="ta" hint="↓" title="Flatten te" onPress={() => onAction({ type: 'chromatic', direction: 'down' })} />
             </div>
             <Divider />
             <div className="flex gap-1">
-                <Key label="–" hint="–" title="Hold the note" onPress={() => onAction({ type: 'hold' })} />
-                <Key label="." hint="." title="Half beat" onPress={() => onAction({ type: 'half' })} />
+                <Key label="–" hint="–" title="Hold the note (inside a beat: one more quarter, d.,r)" onPress={() => onAction({ type: 'hold' })} />
+                <Key label="." hint="." title="Split the note: d.r, then again for quarters d.r,m" onPress={() => onAction({ type: 'half' })} />
+                <Key
+                    label="⅓"
+                    hint="3"
+                    title="Triplet: three notes in one beat — f 3 f f gives f,f,f"
+                    onPress={() => onAction({ type: 'triplet' })}
+                />
                 <Key
                     label="Rest"
-                    hint="X"
+                    hint="Space"
+                    title="Rest (Space, or X)"
                     wide
                     labelClass="text-[12px] leading-4 font-semibold"
                     onPress={() => onAction({ type: 'rest' })}

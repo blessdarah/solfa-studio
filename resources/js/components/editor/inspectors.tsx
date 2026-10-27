@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { SparkleIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { syllableAt } from '@/lib/editor';
@@ -15,8 +16,15 @@ import {
     tempoName,
     timeLabel,
     VOICE_NAMES,
+    barPass,
+    formatBar,
 } from '@/lib/music';
 import { cn } from '@/lib/utils';
+import type { Pass } from '@/lib/music';
+import { lyricTokens, placeWords, wordsStart } from '@/lib/lyrics';
+import type { LyricToken } from '@/lib/lyrics';
+import { parseLine, typeLine } from '@/lib/typing';
+import type { TypingAction } from '@/lib/typing';
 import type { MapEvent, ScoreDocument, Voice, WordsUnder } from '@/types';
 
 function Label({ children }: { children: string }) {
@@ -27,17 +35,24 @@ function Panel({ children }: { children: ReactNode }) {
     return <aside className="flex w-75 shrink-0 flex-col gap-6 overflow-y-auto border-l border-rule bg-paper px-5 py-6">{children}</aside>;
 }
 
+/** ½ ¼ ¾ for halves and quarters, ⅓ ⅔ for triplets. */
+function fraction(frac: number): string {
+    const near = (x: number) => Math.abs(frac - x) < 1e-4;
+
+    return near(0.5) ? '½' : near(0.25) ? '¼' : near(0.75) ? '¾' : near(1 / 3) ? '⅓' : near(2 / 3) ? '⅔' : '';
+}
+
 function beatText(beat: number): string {
     const whole = Math.floor(beat) + 1;
     const frac = beat - Math.floor(beat);
 
-    return frac === 0.5 ? `${whole}½` : frac === 0.25 ? `${whole}¼` : frac === 0.75 ? `${whole}¾` : `${whole}`;
+    return `${whole}${fraction(frac)}`;
 }
 
 function lengthText(length: number): string {
-    const whole = Math.floor(length);
+    const whole = Math.floor(length + 1e-6);
     const frac = length - whole;
-    const fracText = frac === 0.5 ? '½' : frac === 0.25 ? '¼' : frac === 0.75 ? '¾' : '';
+    const fracText = fraction(frac);
     const number = whole === 0 ? fracText : `${whole}${fracText}`;
 
     return `${number} beat${length > 1 ? 's' : ''} long`;
@@ -56,6 +71,10 @@ export function NotesInspector({
     onSuggest,
     onCopyRhythm,
     onRepeat,
+    previousLine,
+    onNav,
+    onPass,
+    onLine,
 }: {
     document: ScoreDocument;
     doh: string;
@@ -65,6 +84,11 @@ export function NotesInspector({
     onSuggest: () => void;
     onCopyRhythm: () => void;
     onRepeat: () => void;
+    /** The bars of the line above the cursor's, for "Repeat bars 1–4 here". */
+    previousLine: number[] | null;
+    onNav: (value: '$' | 'DS' | 'Fine') => void;
+    onPass: (pass: Pass | null) => void;
+    onLine: (actions: TypingAction[]) => void;
 }) {
     const part = partOf(document, cursor.part);
     const note = noteAt(part, cursor.bar, cursor.beat);
@@ -75,8 +99,6 @@ export function NotesInspector({
 
     const rhythmFrom: Voice = cursor.part === 'S' ? (partOf(document, 'A') ? 'A' : 'S') : 'S';
     const suggestTo = Math.min(document.bars, cursor.bar + 2);
-    const systemStart = Math.floor((cursor.bar - 1) / 4) * 4 + 1;
-    const repeatFrom = systemStart - 4;
 
     return (
         <Panel>
@@ -109,6 +131,8 @@ export function NotesInspector({
                     </div>
                 </div>
             </div>
+
+            {canEdit && <TypeLine document={document} cursor={cursor} onLine={onLine} />}
 
             <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
                 <Label>{`BAR ${cursor.bar} · BEAT ${beatText(cursor.beat)}, ALL PARTS`}</Label>
@@ -170,21 +194,283 @@ export function NotesInspector({
                             <span className="text-[11px] leading-3.5 text-pencil">⌘ R</span>
                         </button>
                     )}
-                    {repeatFrom >= 1 && (
+                    {previousLine && (
                         <button
                             type="button"
                             onClick={onRepeat}
                             className="flex h-10 shrink-0 items-center justify-between rounded-full border border-rule px-3.5 hover:bg-copy"
                         >
                             <span className="text-[14px] leading-4.5 font-medium text-ink">
-                                Repeat bars {repeatFrom}–{repeatFrom + 3} here
+                                Repeat bars {previousLine[0]}–{previousLine[previousLine.length - 1]} here
                             </span>
                             <span className="text-[11px] leading-3.5 text-pencil">⌘ D</span>
                         </button>
                     )}
                 </div>
             )}
+
+            {canEdit && <JumpsPanel document={document} bar={cursor.bar} onNav={onNav} onPass={onPass} />}
         </Panel>
+    );
+}
+
+/**
+ * "Type a line": write a phrase in one go with the keypad's keys —
+ * `m-m m-m msfmmr- r-r` — into the cursor's part from the cursor on, with a
+ * preview of the bars it will fill before anything changes.
+ */
+function TypeLine({ document, cursor, onLine }: { document: ScoreDocument; cursor: Cursor; onLine: (actions: TypingAction[]) => void }) {
+    const [text, setText] = useState('');
+    const parsed = parseLine(text);
+    const actions = 'actions' in parsed ? parsed.actions : [];
+    const preview = actions.length > 0 ? typeLine(document, cursor, actions) : null;
+    const part = partOf(preview?.document ?? document, cursor.part);
+    const lastBar = preview ? Math.min(preview.document.bars, preview.cursor.bar - (preview.cursor.beat < 1e-6 ? 1 : 0)) : cursor.bar;
+    const added = preview ? preview.document.bars - document.bars : 0;
+    const bars = preview ? Array.from({ length: Math.max(0, lastBar - cursor.bar + 1) }, (_, i) => cursor.bar + i) : [];
+    const shown = bars.slice(0, 6);
+    const name = VOICE_NAMES[cursor.part].toLowerCase();
+
+    const write = () => {
+        if (actions.length === 0) return;
+        onLine(actions);
+        setText('');
+    };
+
+    return (
+        <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
+            <Label>{`TYPE A LINE · ${VOICE_NAMES[cursor.part].toUpperCase()}`}</Label>
+            <input
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        write();
+                    } else if (event.key === 'Escape') {
+                        setText('');
+                        event.currentTarget.blur();
+                    }
+                }}
+                placeholder="m-m m-m msfmmr- r-r"
+                spellCheck={false}
+                autoComplete="off"
+                aria-label={`Type a line of sol-fa for the ${name}`}
+                className="h-10 rounded-md border border-rule bg-copy px-3 font-solfa text-[14px] leading-4.5 text-ink outline-none placeholder:text-faint focus:border-ink focus:bg-paper"
+            />
+            {'error' in parsed ? (
+                <p className="text-[12px] leading-4 text-danger">{parsed.error}</p>
+            ) : shown.length > 0 ? (
+                <div className="flex flex-col gap-1 rounded-md bg-copy px-3 py-2.5">
+                    {shown.map((bar) => (
+                        <div key={bar} className="flex items-baseline gap-2.5">
+                            <span className="w-5 shrink-0 text-right font-solfa text-[11px] leading-3.5 text-pencil">{bar}</span>
+                            <span className="font-solfa text-[13px] leading-4.5 whitespace-pre text-ink">
+                                {formatBar(part?.bars[bar - 1]?.notes ?? [], beatsInBar((preview?.document ?? document).map, bar))}
+                            </span>
+                        </div>
+                    ))}
+                    {bars.length > shown.length && <span className="pl-7.5 text-[12px] leading-4 text-pencil">… to bar {bars[bars.length - 1]}</span>}
+                    {added > 0 && (
+                        <span className="pl-7.5 text-[12px] leading-4 text-pencil">
+                            Adds {added} bar{added > 1 ? 's' : ''} at the end to fit it all
+                        </span>
+                    )}
+                </div>
+            ) : (
+                <p className="text-[12px] leading-4.5 text-pencil">
+                    Notes as on the keypad: <span className="font-solfa text-ink">' ,</span> octave, <span className="font-solfa text-ink">-</span> hold,{' '}
+                    <span className="font-solfa text-ink">.</span> split, <span className="font-solfa text-ink">f,f,f</span> triplet,{' '}
+                    <span className="font-solfa text-ink">x</span> rest,{' '}
+                    <span className="font-solfa text-ink">|</span> next bar. Spaces are ignored.
+                </p>
+            )}
+            <button
+                type="button"
+                onClick={write}
+                disabled={actions.length === 0}
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-ink px-4 text-[14px] leading-4.5 font-semibold text-paper disabled:bg-copy disabled:text-faint"
+            >
+                Write into {name} from bar {cursor.bar}
+                <span className="text-[11px] leading-3.5 opacity-60">⏎</span>
+            </button>
+        </div>
+    );
+}
+
+/**
+ * "Type the words": paste or type a verse; it is split into syllables and
+ * one goes on each note of the part the words follow, from the cursor on.
+ * The preview shows where every syllable lands before anything changes.
+ */
+function TypeWords({ document, cursor, onWords }: { document: ScoreDocument; cursor: LyricCursor; onWords: (tokens: LyricToken[]) => void }) {
+    const [text, setText] = useState('');
+    const tokens = lyricTokens(text);
+    const withVerse: ScoreDocument =
+        document.verses.length > 0 ? document : { ...document, verses: [{ id: 'preview', label: 'Verse 1', lang: 'en', syllables: [] }] };
+    const start = wordsStart(withVerse, cursor.verse, cursor.part, cursor);
+    const preview = tokens.length > 0 && start ? placeWords(withVerse, cursor.verse, cursor.part, start, tokens) : null;
+    const name = VOICE_NAMES[cursor.part].toLowerCase();
+
+    const byBar = new Map<number, NonNullable<typeof preview>['placed']>();
+    for (const s of preview?.placed ?? []) byBar.set(s.bar, [...(byBar.get(s.bar) ?? []), s]);
+    const bars = [...byBar.keys()];
+    const shown = bars.slice(0, 6);
+    const notesUsed = preview ? tokens.length - preview.leftOver : 0;
+
+    const put = () => {
+        if (tokens.length === 0) return;
+        onWords(tokens);
+        setText('');
+    };
+
+    return (
+        <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
+            <Label>{`TYPE THE WORDS · ${(document.verses[cursor.verse]?.label ?? 'Verse 1').toUpperCase()}`}</Label>
+            <textarea
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        put();
+                    } else if (event.key === 'Escape') {
+                        setText('');
+                        event.currentTarget.blur();
+                    }
+                }}
+                rows={3}
+                placeholder="Glory to God in the highest"
+                spellCheck={false}
+                aria-label={`Type the words for the ${name}'s notes`}
+                className="resize-none rounded-md border border-rule bg-copy px-3 py-2.5 text-[14px] leading-5 text-ink italic outline-none placeholder:text-faint focus:border-ink focus:bg-paper"
+            />
+            {preview && preview.placed.length > 0 ? (
+                <div className="flex flex-col gap-1 rounded-md bg-copy px-3 py-2.5">
+                    {shown.map((bar) => (
+                        <div key={bar} className="flex items-baseline gap-2.5">
+                            <span className="w-5 shrink-0 text-right font-solfa text-[11px] leading-3.5 text-pencil">{bar}</span>
+                            <span className="text-[13px] leading-4.5 text-ink italic">
+                                {byBar
+                                    .get(bar)!
+                                    .map((s) => `${s.text}${s.join === 'split' ? '–' : s.join === 'hold' ? ' __' : ''}`)
+                                    .join('  ')}
+                            </span>
+                        </div>
+                    ))}
+                    {bars.length > shown.length && <span className="pl-7.5 text-[12px] leading-4 text-pencil">… to bar {bars[bars.length - 1]}</span>}
+                    <span className="pt-1 text-[12px] leading-4 text-pencil">
+                        {notesUsed} note{notesUsed === 1 ? '' : 's'} in the {name}
+                        {preview.leftOver > 0 ? '' : `, bars ${bars[0]}–${bars[bars.length - 1]}`}
+                    </span>
+                    {preview.leftOver > 0 && (
+                        <span className="text-[12px] leading-4 text-danger">
+                            {preview.leftOver} syllable{preview.leftOver === 1 ? '' : 's'} left over — the {name} has no more notes. Write the notes first.
+                        </span>
+                    )}
+                </div>
+            ) : tokens.length > 0 ? (
+                <p className="text-[12px] leading-4 text-danger">The {name} has no notes to put words on yet. Write the notes first.</p>
+            ) : (
+                <p className="text-[12px] leading-4.5 text-pencil">
+                    Words are split into syllables for you, one per note. Fix a split with hyphens: <span className="italic text-ink">Hal-le-lu-jah</span>. Hold a
+                    syllable over the next note with <span className="font-solfa text-ink">_</span>: <span className="italic text-ink">Glo_ ry</span>.
+                </p>
+            )}
+            <button
+                type="button"
+                onClick={put}
+                disabled={!preview || preview.placed.length === 0}
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-ink px-4 text-[13.5px] whitespace-nowrap leading-4.5 font-semibold text-paper disabled:bg-copy disabled:text-faint"
+            >
+                Put under {name}{start ? ` from bar ${start.bar}` : ''}
+                <span className="text-[11px] leading-3.5 opacity-60">⏎</span>
+            </button>
+        </div>
+    );
+}
+
+const NAV: { value: '$' | 'DS' | 'Fine'; label: string; title: string }[] = [
+    { value: '$', label: '$ sign', title: 'D.S. comes back to this bar' },
+    { value: 'DS', label: 'D.S.', title: 'After this bar, go back to the $ sign' },
+    { value: 'Fine', label: 'Fine', title: 'The second time through, stop after this bar' },
+];
+
+const PASSES: { value: Pass | null; label: string }[] = [
+    { value: null, label: 'Every time' },
+    { value: 1, label: '1st time' },
+    { value: 2, label: 'D.S. time' },
+];
+
+/**
+ * Where the music jumps (the $ sign, D.S., Fine) and when the bar under
+ * the cursor plays: every time, only the first time through, or only
+ * after going back with D.S. Play follows all of it.
+ */
+function JumpsPanel({
+    document,
+    bar,
+    onNav,
+    onPass,
+}: {
+    document: ScoreDocument;
+    bar: number;
+    onNav: (value: '$' | 'DS' | 'Fine') => void;
+    onPass: (pass: Pass | null) => void;
+}) {
+    const has = (value: string) => document.marks.some((m) => m.kind === 'nav' && m.value === value && m.at.bar === bar);
+    const pass = barPass(document, bar);
+
+    return (
+        <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
+            <Label>{`BAR ${bar} · JUMPS`}</Label>
+            <div className="flex gap-1.5">
+                {NAV.map((item) => {
+                    const on = has(item.value);
+
+                    return (
+                        <button
+                            key={item.value}
+                            type="button"
+                            title={item.title}
+                            aria-pressed={on}
+                            onClick={() => onNav(item.value)}
+                            className={cn(
+                                'flex h-8 grow items-center justify-center rounded-full font-solfa text-[13px] leading-4 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                                on ? 'bg-ink text-paper' : 'border border-rule text-ink hover:bg-copy',
+                            )}
+                        >
+                            {item.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="text-[12px] leading-4 text-pencil">This bar plays</div>
+            <div className="flex gap-1 rounded-full bg-copy p-1">
+                {PASSES.map((item) => {
+                    const on = item.value === pass;
+
+                    return (
+                        <button
+                            key={item.label}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => onPass(item.value)}
+                            className={cn(
+                                'flex h-7 grow items-center justify-center rounded-full text-[12.5px] leading-4 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                                on ? 'bg-ink font-semibold text-paper' : 'font-medium text-pencil hover:text-ink',
+                            )}
+                        >
+                            {item.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <p className="text-[12px] leading-4.5 text-pencil">
+                At D.S. the music goes back to the $ sign. The second time through, 1st-time bars are skipped, D.S.-time bars play, and Fine
+                ends the piece.
+            </p>
+        </div>
     );
 }
 
@@ -205,6 +491,7 @@ export function LyricsInspector({
     onWordsUnder,
     onVerse,
     onAddTranslation,
+    onWords,
 }: {
     document: ScoreDocument;
     cursor: LyricCursor;
@@ -212,6 +499,7 @@ export function LyricsInspector({
     onWordsUnder: (value: WordsUnder) => void;
     onVerse: (index: number) => void;
     onAddTranslation: () => void;
+    onWords: (tokens: LyricToken[]) => void;
 }) {
     const verse = document.verses[cursor.verse];
     const beats = beatsInBar(document.map, cursor.bar);
@@ -259,6 +547,8 @@ export function LyricsInspector({
                     Type a syllable, then Space to move to the next note. Type “-” to split a word across notes.
                 </div>
             </div>
+
+            {canEdit && <TypeWords document={document} cursor={cursor} onWords={onWords} />}
 
             <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
                 <Label>WORDS SHOW UNDER</Label>

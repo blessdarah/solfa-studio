@@ -11,7 +11,7 @@ use JsonSerializable;
  * seconds — tempo lives only in the tempo map, so changing speed never
  * rewrites a note. `m` at start 2, length 1 is "m on beat 3 for one beat".
  *
- * `octave` is -1 for the low octave (d₁), 0 for the middle, 1 for high (d').
+ * `octave` is -2 two below (d₂), -1 low (d₁), 0 middle, 1 high (d'), 2 two above (d'').
  */
 final readonly class Note implements JsonSerializable
 {
@@ -21,9 +21,11 @@ final readonly class Note implements JsonSerializable
         public float $start,
         public float $length,
         public NoteSource $source = NoteSource::Typed,
+        /** Carries on the note before it over a bar line — written "–", sung on, not struck again. */
+        public bool $tie = false,
     ) {
-        if ($octave < -1 || $octave > 1) {
-            throw InvalidScoreDocument::at('octave', 'must be -1, 0 or 1');
+        if ($octave < -2 || $octave > 2) {
+            throw InvalidScoreDocument::at('octave', 'must be between -2 and 2');
         }
 
         if ($start < 0) {
@@ -46,10 +48,11 @@ final readonly class Note implements JsonSerializable
 
         return new self(
             pitch: Field::enum($data, 'pitch', $path, Pitch::class),
-            octave: Field::int($data, 'octave', $path, -1, 1),
+            octave: Field::int($data, 'octave', $path, -2, 2),
             start: Field::number($data, 'start', $path, 0),
             length: $length,
             source: Field::enum($data, 'source', $path, NoteSource::class, NoteSource::Typed),
+            tie: Field::bool($data, 'tie', $path),
         );
     }
 
@@ -75,21 +78,24 @@ final readonly class Note implements JsonSerializable
     }
 
     /**
-     * @return array{pitch: string, octave: int, start: float, length: float, source: string}
+     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true}
      */
     public function toArray(): array
     {
-        return [
+        $note = [
             'pitch' => $this->pitch->value,
             'octave' => $this->octave,
             'start' => $this->start,
             'length' => $this->length,
             'source' => $this->source->value,
         ];
+
+        // Only a tied note says so, keeping ordinary notes as they were.
+        return $this->tie ? $note + ['tie' => true] : $note;
     }
 
     /**
-     * @return array{pitch: string, octave: int, start: float, length: float, source: string}
+     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true}
      */
     public function jsonSerialize(): array
     {

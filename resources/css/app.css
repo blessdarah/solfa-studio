@@ -72,3 +72,45 @@
         cursor: default;
     }
 }
+
+/*
+ * Printing (Paper W8): only the print view's pages reach the paper — no
+ * editor, no settings, no preview zoom or shadows; one page per sheet.
+ */
+@media print {
+    body > *:not(.print-root) {
+        display: none !important;
+    }
+
+    .print-root {
+        position: static !important;
+        display: block !important;
+        background: none !important;
+    }
+
+    .print-chrome {
+        display: none !important;
+    }
+
+    .print-body,
+    .print-scroll {
+        display: block !important;
+        overflow: visible !important;
+    }
+
+    .print-pages {
+        display: block !important;
+        zoom: 1 !important;
+        padding: 0 !important;
+    }
+
+    .print-page {
+        box-shadow: none !important;
+        break-after: page;
+        print-color-adjust: exact;
+    }
+
+    .print-page:last-child {
+        break-after: auto;
+    }
+}

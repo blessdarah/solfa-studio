@@ -1,40 +1,145 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { noteStarts, syllableAt, wordsPart } from '@/lib/editor';
 import {
+    VOICE_NAMES,
+    barPass,
     beatsInBar,
+    barSegments,
     emptyBar,
     formatBar,
     formatWords,
     keyLabel,
     partHasNotes,
-    splitBarAt,
-    systemsOf,
+    layoutLines,
     tempoAt,
     timeLabel,
 } from '@/lib/music';
+import type { BarSegment, PlayStep } from '@/lib/music';
+import { useDismiss } from '@/lib/use-dismiss';
 import { cn } from '@/lib/utils';
 import { PlayHead } from '@/components/editor/play-head';
 import type { Playback } from '@/lib/player';
 import type { EditorMode, Mark, Part, ScoreDocument, Syllable, Voice } from '@/types';
 
-/** Column geometry from the Paper sheet: a 24px label lane and 165px bars. */
+/** Column geometry from the Paper sheet: a 24px label lane, then bars at least 165px wide. */
 const LANE = 24;
-const BAR = 165;
 const PAD = 10;
-const INNER = BAR - PAD;
 
 export type LyricCursor = { verse: number; part: Voice; bar: number; beat: number };
 
 type Row =
     | { kind: 'part'; part: Part }
+    | { kind: 'rests'; part: Part }
     | { kind: 'words'; verse: number; part: Voice };
 
-function beatX(barIndex: number, beat: number, beats: number): number {
-    return LANE + barIndex * BAR + PAD + (beat / beats) * INNER;
+/**
+ * The bar line that closes a line of music: a single line at the end of
+ * every line, a double bar at the very end of the piece.
+ */
+export function closing(index: number, bars: number[], total: number): string {
+    if (index !== bars.length - 1) return '';
+
+    return bars[index] === total ? 'border-r-4 border-double' : 'border-r';
 }
 
-function NavLabel({ value }: { value: string }) {
+/** "5–8", "5, 7", "5–6, 8" */
+function barList(bars: number[]): string {
+    const sorted = [...bars].sort((a, b) => a - b);
+    const runs: string[] = [];
+
+    for (let i = 0; i < sorted.length; i++) {
+        let j = i;
+        while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+        runs.push(j > i ? `${sorted[i]}–${sorted[j]}` : `${sorted[i]}`);
+        i = j;
+    }
+
+    return runs.join(', ');
+}
+
+/**
+ * "Take the tenor out of…" (Paper W6): pick which bars of this line the
+ * part rests in — all of them to start with; tap a bar to keep it.
+ */
+function RestPopover({
+    part,
+    bars,
+    left,
+    top,
+    onCancel,
+    onRest,
+}: {
+    part: Voice;
+    bars: number[];
+    left: number;
+    top: number;
+    onCancel: () => void;
+    onRest: (bars: number[]) => void;
+}) {
+    const [picked, setPicked] = useState<number[]>(bars);
+    const box = useRef<HTMLDivElement>(null);
+    const name = VOICE_NAMES[part].toLowerCase();
+
+    useDismiss(box, true, onCancel);
+
+    return (
+        <div
+            ref={box}
+            role="dialog"
+            aria-label={`Take the ${name} out of bars`}
+            className="absolute z-40 flex w-75 flex-col gap-3.5 rounded-md border border-rule bg-paper p-4 shadow-[0_20px_50px_#00000024]"
+            style={{ left, top }}
+        >
+            <div className="flex flex-col gap-0.75">
+                <div className="text-[14px] leading-4.5 font-semibold text-ink">Take the {name} out of…</div>
+                <div className="text-[12px] leading-4 text-pencil">
+                    In the bars you pick, the {name} rests: its notes are cleared and its line is left off. Tap a bar to keep it.
+                </div>
+            </div>
+            <div className="flex gap-1.5">
+                {bars.map((bar) => {
+                    const on = picked.includes(bar);
+
+                    return (
+                        <button
+                            key={bar}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() => setPicked(on ? picked.filter((b) => b !== bar) : [...picked, bar].sort((a, b) => a - b))}
+                            className={cn(
+                                'flex h-8.5 grow basis-0 items-center justify-center rounded-sm font-solfa text-[13px] leading-4 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                                on ? 'bg-ink text-paper' : 'border border-rule text-ink hover:bg-copy',
+                            )}
+                        >
+                            {bar}
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+                <button type="button" onClick={onCancel} className="flex h-9 items-center rounded-full px-3 text-[13.5px] leading-4.5 font-semibold text-pencil hover:text-ink">
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    disabled={picked.length === 0}
+                    onClick={() => onRest(picked)}
+                    className="flex h-9 items-center rounded-full bg-ink px-3.5 text-[13.5px] leading-4.5 font-semibold whitespace-nowrap text-paper disabled:bg-copy disabled:text-faint"
+                >
+                    {picked.length === 0 ? 'Pick a bar' : `Remove from ${barList(picked)}`}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+/** Where each bar of a line starts, after the label lane. */
+function offsetsOf(widths: number[]): number[] {
+    return widths.map((_, i) => LANE + widths.slice(0, i).reduce((a, b) => a + b, 0));
+}
+
+export function NavLabel({ value }: { value: string }) {
     const text = value === 'DS' ? 'D.S.' : value === 'DC' ? 'D.C.' : value;
 
     return <span className="text-[12px] leading-4 font-bold text-ink">{text}</span>;
@@ -44,13 +149,15 @@ function NavLabel({ value }: { value: string }) {
  * The marks lane above the parts: dynamics (Georgia italic), words like
  * "gently", hairpin wedges drawn to length, and Fine / D.S. at bar ends.
  */
-function MarksRow({ document, bars }: { document: ScoreDocument; bars: number[] }) {
+export function MarksRow({ document, bars, widths, compact = false }: { document: ScoreDocument; bars: number[]; widths: number[]; compact?: boolean }) {
     const first = bars[0];
     const last = bars[bars.length - 1];
     const items: ReactNode[] = [];
+    const offsets = offsetsOf(widths);
 
     const inSystem = (bar: number) => bar >= first && bar <= last;
-    const x = (bar: number, beat: number) => beatX(bar - first, beat, beatsInBar(document.map, bar));
+    const x = (bar: number, beat: number) =>
+        offsets[bar - first] + PAD + (beat / beatsInBar(document.map, bar)) * (widths[bar - first] - PAD);
 
     const dynamics = document.marks.filter((m) => m.kind === 'dyn' && inSystem(m.at.bar));
     const texts = document.marks.filter((m) => m.kind === 'text' && inSystem(m.at.bar));
@@ -97,7 +204,7 @@ function MarksRow({ document, bars }: { document: ScoreDocument; bars: number[] 
         if (to.bar < first || mark.at.bar > last) continue;
 
         const startX = mark.at.bar >= first ? x(mark.at.bar, mark.at.beat) : LANE + PAD;
-        let endX = to.bar <= last ? x(to.bar, to.beat) - (to.beat >= beatsInBar(document.map, to.bar) ? PAD : 0) : LANE + bars.length * BAR - PAD;
+        let endX = to.bar <= last ? x(to.bar, to.beat) - (to.beat >= beatsInBar(document.map, to.bar) ? PAD : 0) : LANE + widths.reduce((a, b) => a + b, 0) - PAD;
 
         const blocking = dynamics
             .map((d) => x(d.at.bar, d.at.beat))
@@ -131,17 +238,17 @@ function MarksRow({ document, bars }: { document: ScoreDocument; bars: number[] 
             <div
                 key={`n-${mark.at.bar}-${mark.value}`}
                 className="absolute top-1/2 flex -translate-y-1/2 justify-end pr-2"
-                style={{ left: LANE + (mark.at.bar - first) * BAR, width: BAR }}
+                style={{ left: offsets[mark.at.bar - first], width: widths[mark.at.bar - first] }}
             >
                 <NavLabel value={mark.value} />
             </div>,
         );
     }
 
-    return <div className="relative h-6 shrink-0">{items}</div>;
+    return <div className={cn('relative shrink-0', compact ? 'h-4.5' : 'h-6')}>{items}</div>;
 }
 
-function hasMarks(document: ScoreDocument, bars: number[]): boolean {
+export function hasMarks(document: ScoreDocument, bars: number[]): boolean {
     const first = bars[0];
     const last = bars[bars.length - 1];
 
@@ -155,6 +262,148 @@ function hasMarks(document: ScoreDocument, bars: number[]): boolean {
 /**
  * The printed score (Paper W1/W2/W3 "Sheet"), built from the document.
  */
+/**
+ * Sol-fa type size for a bar: 14px, unless even a bar the whole width of
+ * the line can't hold the busiest part (bars normally widen instead). The
+ * same size for every part in the bar keeps their beats lined up.
+ */
+export function solfaSize(document: ScoreDocument, barNo: number, width: number, chip = 22): number {
+    const beats = beatsInBar(document.map, barNo);
+    const longest = Math.max(
+        0,
+        ...document.parts.map((p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length),
+    );
+    const room = width - PAD - chip; // the bar, its left padding, the cursor chip
+    const charWidth = 0.6; // JetBrains Mono advance per px of font size
+
+    return Math.max(9, Math.min(14, Math.floor((room / Math.max(1, longest) / charWidth) * 2) / 2));
+}
+
+export type BarToolActions = {
+    onInsert: (at: number) => void;
+    onDuplicate: (bar: number) => void;
+    onDelete: (bar: number) => void;
+};
+
+function ToolButton({ label, onPress, children, danger = false }: { label: string; onPress: () => void; children: ReactNode; danger?: boolean }) {
+    return (
+        <span className="group/tool relative flex">
+            <button
+                type="button"
+                aria-label={label}
+                onClick={onPress}
+                className={cn('flex size-7 items-center justify-center rounded-full outline-none hover:bg-white/12 focus-visible:bg-white/12', danger && 'bg-white/12')}
+            >
+                {children}
+            </button>
+            <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 hidden -translate-x-1/2 rounded-[6px] border border-rule bg-paper px-2.25 py-1.25 text-[12px] leading-4 font-medium whitespace-nowrap text-ink shadow-[0_6px_16px_#0000001A] group-hover/tool:block">
+                {label}
+            </span>
+        </span>
+    );
+}
+
+/** A "+" sitting on a bar line: add a bar there. */
+function InsertHandle({ x, label, onPress }: { x: number; label: string; onPress: () => void }) {
+    return (
+        <span className="group/insert pointer-events-none absolute -top-2.75 z-20 flex h-[calc(100%+11px)] w-5.5 flex-col items-center" style={{ left: x - 11 }}>
+            <button
+                type="button"
+                aria-label={label}
+                onClick={onPress}
+                className="peer pointer-events-auto flex size-5.5 shrink-0 items-center justify-center rounded-full bg-ink shadow-[0_0_0_3px_#FFFFFF] outline-none"
+            >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M6 2.5v7M2.5 6h7" stroke="#FFFFFF" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
+            </button>
+            <span className="hidden w-0.75 grow rounded-full bg-marker peer-hover:block peer-focus-visible:block" />
+            <span className="absolute top-[-2px] left-7 hidden rounded-[6px] border border-rule bg-paper px-2.25 py-1.25 text-[12px] leading-4 font-medium whitespace-nowrap text-ink shadow-[0_6px_16px_#0000001A] peer-hover:block">
+                {label}
+            </span>
+        </span>
+    );
+}
+
+/**
+ * The hovered bar (Paper W7): an outline round its column, a toolbar
+ * above it — add before, add after, copy, delete — and "+" handles on its
+ * bar lines, like blocks in a website builder.
+ */
+function BarTools({
+    bar,
+    left,
+    width,
+    canDelete,
+    isLast,
+    onInsert,
+    onDuplicate,
+    onDelete,
+}: { bar: number; left: number; width: number; canDelete: boolean; isLast: boolean } & BarToolActions) {
+    const icon = 'stroke-paper';
+
+    return (
+        <>
+            <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-[1.5px] z-10 h-[calc(100%+3px)] rounded-[3px] border-[1.5px] border-ink bg-marker/8"
+                style={{ left, width: width + 1 }}
+            />
+            {/* The toolbar sits on an invisible strip down to the bar, so the pointer can travel up to it. */}
+            <div className="absolute -top-11 z-30 flex h-11 items-start" style={{ left }}>
+            <div className="flex h-8 items-center gap-0.5 rounded-full bg-ink pr-0.75 pl-2.5 shadow-[0_8px_24px_#00000033]">
+                <span className="pr-1.5 font-solfa text-[11.5px] leading-3.5 text-paper/70">Bar {bar}</span>
+                <span className="h-4 w-px bg-paper/20" />
+                <ToolButton label={`Add a bar before ${bar}`} onPress={() => onInsert(bar)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path className={icon} d="M10.5 2.5v11M3.5 8h4M5.5 6v4" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                </ToolButton>
+                <ToolButton label={`Add a bar after ${bar}`} onPress={() => onInsert(bar + 1)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path className={icon} d="M5.5 2.5v11M8.5 8h4M10.5 6v4" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                </ToolButton>
+                <ToolButton label={`Copy bar ${bar} after it`} onPress={() => onDuplicate(bar)}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <rect className={icon} x="5.5" y="5.5" width="8" height="8" rx="1.5" strokeWidth="1.4" />
+                        <path className={icon} d="M10.5 3.5v-.3c0-.7-.5-1.2-1.2-1.2H3.7c-.7 0-1.2.5-1.2 1.2v5.6c0 .7.5 1.2 1.2 1.2h.3" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                </ToolButton>
+                {canDelete && (
+                    <ToolButton label={`Delete bar ${bar}`} onPress={() => onDelete(bar)} danger>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path
+                                d="M2.5 4.2h11M6.3 4.2V2.9c0-.4.3-.7.7-.7h2c.4 0 .7.3.7.7v1.3M4 4.2l.6 8.6c.1.7.6 1.2 1.3 1.2h4.2c.7 0 1.2-.5 1.3-1.2l.6-8.6M6.7 7v4.4M9.3 7v4.4"
+                                stroke="#FF8A7A"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </ToolButton>
+                )}
+            </div>
+            </div>
+            <InsertHandle x={left} label={bar > 1 ? `Add a bar between ${bar - 1} and ${bar}` : 'Add a bar before bar 1'} onPress={() => onInsert(bar)} />
+            <InsertHandle x={left + width} label={isLast ? `Add a bar after ${bar}` : `Add a bar between ${bar} and ${bar + 1}`} onPress={() => onInsert(bar + 1)} />
+        </>
+    );
+}
+
+/** A bar's sol-fa as spans that know their beat, so a click lands on the exact note. */
+function Pieces({ pieces }: { pieces: BarSegment[] }) {
+    return (
+        <>
+            {pieces.map((p, i) => (
+                <span key={i} data-at={p.at} className={p.kind === 'slot' && p.text !== '' ? 'hover:bg-copy' : undefined}>
+                    {p.text}
+                </span>
+            ))}
+        </>
+    );
+}
+
 export function Sheet({
     document,
     title,
@@ -173,6 +422,9 @@ export function Sheet({
     sheetRef,
     playback = null,
     onPlayingBar,
+    onRest,
+    onBringBack,
+    barTools,
 }: {
     document: ScoreDocument;
     title: string;
@@ -190,9 +442,26 @@ export function Sheet({
     popover: ReactNode;
     sheetRef?: (element: HTMLDivElement | null) => void;
     playback?: Playback | null;
-    onPlayingBar?: (bar: number | null) => void;
+    onPlayingBar?: (step: PlayStep | null) => void;
+    /** Take a part out of these bars (it rests there), or put it back. */
+    onRest?: (part: Voice, bars: number[]) => void;
+    onBringBack?: (part: Voice, bars: number[]) => void;
+    /** Hover a bar to add a bar before / after it, copy it or delete it (Paper W7). */
+    barTools?: BarToolActions;
 }) {
     const root = useRef<HTMLDivElement | null>(null);
+    const [hoverBar, setHoverBar] = useState<number | null>(null);
+    // Leaving a bar hides its tools only after a moment, so a slightly wobbly pointer can still reach them.
+    const leaveTimer = useRef<number | null>(null);
+    const [restMenu, setRestMenu] = useState<{ part: Voice; bars: number[]; left: number; top: number } | null>(null);
+    const closeRestMenu = useCallback(() => setRestMenu(null), []);
+
+    const openRestMenu = (event: MouseEvent<HTMLElement>, part: Voice, bars: number[]) => {
+        const box = root.current?.getBoundingClientRect();
+        const at = event.currentTarget.getBoundingClientRect();
+
+        if (box) setRestMenu({ part, bars, left: at.left - box.left - 10, top: at.bottom - box.top + 8 });
+    };
     const numbers = useRef(new Map<number, HTMLElement>());
     const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
 
@@ -252,10 +521,18 @@ export function Sheet({
                   : (ids.includes('A') ? 'A' : ids[0]);
 
         for (const part of document.parts) {
-            rows.push({ kind: 'part', part });
+            // A part resting through the whole line is left off it — unless the cursor is writing there.
+            const resting = bars.every((b) => part.bars[b - 1]?.tacet);
+            const writingHere = mode === 'notes' && cursor.part === part.id && bars.includes(cursor.bar);
+
+            if (resting && !writingHere) {
+                rows.push({ kind: 'rests', part });
+            } else {
+                rows.push({ kind: 'part', part });
+            }
 
             if (document.words_under === 'each') {
-                rows.push(...wordRows(part.id));
+                if (!resting || writingHere) rows.push(...wordRows(part.id));
             } else if (part.id === after) {
                 rows.push(...wordRows(wordsVoice));
             }
@@ -264,11 +541,18 @@ export function Sheet({
         return rows;
     };
 
+    /** The spot clicked: the exact note (or "." / ":" position) under the pointer, else the nearest beat. */
     const clickBeat = (event: MouseEvent<HTMLElement>, beats: number) => {
+        const piece = (event.target as HTMLElement).closest<HTMLElement>('[data-at]');
+
+        if (piece && event.currentTarget.contains(piece)) {
+            return Math.min(beats - 1e-6, Number(piece.dataset.at));
+        }
+
         const box = event.currentTarget.getBoundingClientRect();
         const x = event.clientX - box.left - PAD;
 
-        return Math.max(0, Math.min(beats - 1, Math.floor((x / INNER) * beats)));
+        return Math.max(0, Math.min(beats - 1, Math.floor((x / (box.width - PAD)) * beats)));
     };
 
     return (
@@ -301,12 +585,41 @@ export function Sheet({
                 </div>
             </div>
 
-            {systemsOf(document.bars).map((bars) => (
-                <div key={bars[0]} data-system={bars[0]} className="flex flex-col border-y-[1.5px] border-ink">
+            {layoutLines(document).map(({ bars, widths }) => (
+                <div
+                    key={bars[0]}
+                    data-system={bars[0]}
+                    className="relative flex flex-col self-start border-y-[1.5px] border-ink"
+                    onMouseMove={(event) => {
+                        if (!barTools) return;
+                        if (leaveTimer.current !== null) window.clearTimeout(leaveTimer.current);
+                        leaveTimer.current = null;
+                        // Which bar column the pointer is over (the label lane counts as the first bar).
+                        const x = event.clientX - event.currentTarget.getBoundingClientRect().left - LANE;
+                        let edge = 0;
+                        const index = widths.findIndex((w) => (edge += w) > x);
+                        const bar = bars[index === -1 ? bars.length - 1 : index];
+                        if (bar !== hoverBar) setHoverBar(bar);
+                    }}
+                    onMouseLeave={() => {
+                        if (leaveTimer.current !== null) window.clearTimeout(leaveTimer.current);
+                        leaveTimer.current = window.setTimeout(() => setHoverBar(null), 350);
+                    }}
+                >
+                    {barTools && hoverBar !== null && bars.includes(hoverBar) && (
+                        <BarTools
+                            bar={hoverBar}
+                            left={LANE + widths.slice(0, bars.indexOf(hoverBar)).reduce((a, b) => a + b, 0)}
+                            width={widths[bars.indexOf(hoverBar)]}
+                            canDelete={document.bars > 1}
+                            isLast={hoverBar === document.bars}
+                            {...barTools}
+                        />
+                    )}
                     {/* Bar numbers, the $ sign and tempo / time changes */}
                     <div className="flex h-5.5 shrink-0 items-end">
                         <div className="w-6 shrink-0" />
-                        {bars.map((bar) => {
+                        {bars.map((bar, index) => {
                             const segno = document.marks.some((m) => m.kind === 'nav' && m.value === '$' && m.at.bar === bar);
                             const section = document.sections.find((s) => s.from === bar && s.ending === null);
                             const change = bar > 1 ? document.map.find((e) => e.bar === bar) : undefined;
@@ -314,9 +627,21 @@ export function Sheet({
                             const before = change ? tempoAt(document.map, bar - 1) : null;
                             const word =
                                 change?.bpm && before ? (change.bpm < before ? 'Slower' : change.bpm > before ? 'Faster' : '') : '';
+                            // "1st time" / "D.S. time" bars sit under a bracket, like a volta.
+                            const only = barPass(document, bar);
+                            const opens = only !== null && (bar === bars[0] || barPass(document, bar - 1) !== only);
 
                             return (
-                                <div key={bar} className="flex w-41.25 shrink-0 items-center gap-1.5 pl-2.5">
+                                <div key={bar} data-bar={bar} style={{ width: widths[index] }} className="relative flex shrink-0 items-center gap-1.5 pl-2.5">
+                                    {only !== null && (
+                                        <span
+                                            aria-hidden="true"
+                                            className={cn(
+                                                'pointer-events-none absolute inset-x-0 -top-0.5 bottom-0 border-t-[1.5px] border-ink',
+                                                opens && 'border-l-[1.5px]',
+                                            )}
+                                        />
+                                    )}
                                     <button
                                         type="button"
                                         ref={(el) => {
@@ -356,16 +681,46 @@ export function Sheet({
                                             {word && <span className="text-[11px] leading-3.5 text-ink italic">{word}</span>}
                                         </button>
                                     )}
+                                    {opens && (
+                                        <span className="text-[11px] leading-3.5 font-semibold text-ink italic">
+                                            {only === 1 ? '1st time' : 'D.S. time'}
+                                        </span>
+                                    )}
                                 </div>
                             );
                         })}
                     </div>
 
-                    {hasMarks(document, bars) && <MarksRow document={document} bars={bars} />}
+                    {hasMarks(document, bars) && <MarksRow document={document} bars={bars} widths={widths} />}
 
                     {rowsFor(bars).map((row) =>
                         row.kind === 'part' ? (
-                            <div key={`p-${row.part.id}`} className="flex h-7 shrink-0 items-center">
+                            <div
+                                key={`p-${row.part.id}`}
+                                className={cn(
+                                    'group relative flex h-7 shrink-0 items-center',
+                                    restMenu?.part === row.part.id && restMenu.bars[0] === bars[0] ? 'bg-copy/60' : canEdit && 'hover:bg-copy/60',
+                                )}
+                            >
+                                {canEdit && onRest && (
+                                    // A strip over the page margin, part of the row, so the pointer can reach the button.
+                                    <span className="absolute top-0 -left-9 flex h-full w-9 items-center pl-1">
+                                        <button
+                                            type="button"
+                                            onClick={(event) => openRestMenu(event, row.part.id, bars)}
+                                            aria-label={`Take the ${VOICE_NAMES[row.part.id].toLowerCase()} out of bars ${barList(bars)}`}
+                                            title={`Take the ${VOICE_NAMES[row.part.id].toLowerCase()} out of these bars`}
+                                            className={cn(
+                                                'size-5 items-center justify-center rounded-full bg-ink shadow-[0_0_0_3px_#FFFFFF] outline-none focus-visible:flex',
+                                                restMenu?.part === row.part.id && restMenu.bars[0] === bars[0] ? 'flex' : 'hidden group-hover:flex',
+                                            )}
+                                        >
+                                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                                                <path d="M2 5h6" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" />
+                                            </svg>
+                                        </button>
+                                    </span>
+                                )}
                                 <div
                                     className={cn(
                                         'w-6 shrink-0 font-display text-[12px] leading-4 font-extrabold',
@@ -374,29 +729,43 @@ export function Sheet({
                                 >
                                     {row.part.id}
                                 </div>
-                                {bars.map((barNo) => {
+                                {bars.map((barNo, index) => {
                                     const beats = beatsInBar(document.map, barNo);
                                     const notes = row.part.bars[barNo - 1]?.notes ?? [];
+                                    const width = widths[index];
+                                    const fit = { fontSize: solfaSize(document, barNo, width) };
                                     const active = mode === 'notes' && cursor.part === row.part.id && cursor.bar === barNo;
 
                                     if (active) {
-                                        const { before, at, after } = splitBarAt(notes, beats, cursor.beat);
+                                        const pieces = barSegments(notes, beats, cursor.beat);
+                                        const chip = pieces.findIndex((p) => p.kind === 'slot' && Math.abs(p.at - cursor.beat) < 1e-6);
+                                        const before = pieces.slice(0, Math.max(0, chip));
+                                        const after = chip < 0 ? [] : pieces.slice(chip + 1);
+                                        const at = chip < 0 ? '' : pieces[chip].text;
 
                                         return (
                                             <div
                                                 key={barNo}
                                                 onClick={(e) => onCell(row.part.id, barNo, clickBeat(e, beats))}
-                                                className="flex h-7 w-41.25 shrink-0 cursor-text items-center gap-1.5 border-l border-ink bg-wash pl-2.5"
+                                                style={{ width }}
+                                                className={cn(
+                                                    'flex h-7 shrink-0 cursor-text items-center gap-1.5 border-l border-ink bg-wash pl-2.5',
+                                                    closing(index, bars, document.bars),
+                                                )}
                                             >
-                                                {before !== '' && (
-                                                    <span className="w-max font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">{before}</span>
+                                                {before.length > 0 && (
+                                                    <span style={fit} className="w-max font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">
+                                                        <Pieces pieces={before} />
+                                                    </span>
                                                 )}
                                                 <span className="flex h-5.5 items-center gap-px rounded-[4px] bg-marker px-1.5 outline-2 outline-ink outline-solid">
-                                                    {at !== '' && <span className="font-solfa text-[14px] leading-4.5 text-ink">{at}</span>}
+                                                    {at !== '' && <span style={fit} className="font-solfa text-[14px] leading-4.5 text-ink">{at}</span>}
                                                     <span className="h-3.75 w-0.5 shrink-0 animate-pulse bg-ink" />
                                                 </span>
-                                                {after.trim() !== '' && (
-                                                    <span className="w-max font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">{after}</span>
+                                                {after.some((p) => p.text.trim() !== '') && (
+                                                    <span style={fit} className="w-max font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">
+                                                        <Pieces pieces={after} />
+                                                    </span>
                                                 )}
                                             </div>
                                         );
@@ -406,22 +775,52 @@ export function Sheet({
                                         <div
                                             key={barNo}
                                             onClick={(e) => mode === 'notes' && onCell(row.part.id, barNo, clickBeat(e, beats))}
+                                            style={{ width }}
                                             className={cn(
-                                                'flex h-7 w-41.25 shrink-0 items-center border-l border-ink pl-2.5',
+                                                'flex h-7 shrink-0 items-center border-l border-ink pl-2.5',
+                                                closing(index, bars, document.bars),
                                                 mode === 'notes' && 'cursor-text',
                                             )}
                                         >
                                             <span
+                                                style={fit}
                                                 className={cn(
                                                     'w-max font-solfa text-[14px] leading-4.5 whitespace-pre',
                                                     notes.length > 0 ? 'text-ink' : 'text-dot',
                                                 )}
                                             >
-                                                {notes.length > 0 ? formatBar(notes, beats) : emptyBar(beats)}
+                                                {notes.length > 0 ? (
+                                                    <Pieces pieces={barSegments(notes, beats)} />
+                                                ) : row.part.bars[barNo - 1]?.tacet ? (
+                                                    <span className="font-sans text-[11.5px] text-pencil italic">rests</span>
+                                                ) : (
+                                                    emptyBar(beats)
+                                                )}
                                             </span>
                                         </div>
                                     );
                                 })}
+                            </div>
+                        ) : row.kind === 'rests' ? (
+                            <div key={`r-${row.part.id}`} className="relative flex h-5 shrink-0 items-center">
+                                <div className="w-6 shrink-0 font-display text-[12px] leading-4 font-extrabold text-dot">{row.part.id}</div>
+                                {bars.map((barNo, index) => (
+                                    <div key={barNo} style={{ width: widths[index] }} className={cn('h-5 shrink-0 border-l border-ink', closing(index, bars, document.bars))} />
+                                ))}
+                                <div className="absolute top-0.5 left-8.5 flex h-4 items-center gap-2 rounded-[4px] bg-paper px-2">
+                                    <span className="text-[11.5px] leading-3.75 text-pencil italic">
+                                        {VOICE_NAMES[row.part.id]} rests in bar{bars.length > 1 ? 's' : ''} {barList(bars)}
+                                    </span>
+                                    {canEdit && onBringBack && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onBringBack(row.part.id, bars)}
+                                            className="text-[11.5px] leading-3.75 font-semibold text-ink underline hover:no-underline"
+                                        >
+                                            Bring back
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <WordsRow
@@ -430,6 +829,7 @@ export function Sheet({
                                 verse={row.verse}
                                 part={row.part}
                                 bars={bars}
+                                widths={widths}
                                 mode={mode}
                                 cursor={lyricCursor}
                                 onWords={onWords}
@@ -438,6 +838,20 @@ export function Sheet({
                     )}
                 </div>
             ))}
+
+            {barTools && (
+                <button
+                    type="button"
+                    onClick={() => barTools.onInsert(document.bars + 1)}
+                    className="-mt-2.5 flex h-10 shrink-0 items-center justify-center gap-2 rounded-sm border-[1.5px] border-dashed border-dot text-pencil outline-none hover:border-ink hover:text-ink focus-visible:border-ink"
+                >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                        <path d="M6 2.5v7M2.5 6h7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                    <span className="text-[13px] leading-4 font-medium">Add a bar at the end</span>
+                    <span className="font-solfa text-[11px] leading-3.5 text-faint">bar {document.bars + 1}</span>
+                </button>
+            )}
 
             {mode === 'lyrics' && document.footnotes.length > 0 && (
                 <div className="relative flex flex-col gap-1.5 rounded-[4px] px-3.5 py-3 outline-[1.5px] outline-ink outline-dashed">
@@ -452,7 +866,22 @@ export function Sheet({
                 </div>
             )}
 
-            <PlayHead playback={playback} root={root} onBar={(bar) => onPlayingBar?.(bar)} />
+            <PlayHead playback={playback} root={root} onBar={(step) => onPlayingBar?.(step)} />
+
+            {restMenu && onRest && (
+                <RestPopover
+                    key={`${restMenu.part}-${restMenu.bars[0]}`}
+                    part={restMenu.part}
+                    bars={restMenu.bars}
+                    left={restMenu.left}
+                    top={restMenu.top}
+                    onCancel={closeRestMenu}
+                    onRest={(picked) => {
+                        onRest(restMenu.part, picked);
+                        setRestMenu(null);
+                    }}
+                />
+            )}
 
             {anchor && popover && (
                 <>
@@ -481,6 +910,7 @@ function WordsRow({
     verse,
     part,
     bars,
+    widths,
     mode,
     cursor,
     onWords,
@@ -489,6 +919,7 @@ function WordsRow({
     verse: number;
     part: Voice;
     bars: number[];
+    widths: number[];
     mode: EditorMode;
     cursor: LyricCursor;
     onWords: (verse: number, part: Voice, bar: number, beat: number) => void;
@@ -499,7 +930,8 @@ function WordsRow({
     return (
         <div className="flex h-6.5 shrink-0 items-center">
             <div className="w-6 shrink-0 text-[10px] leading-3 font-bold text-pencil">{extra ? `v${verse + 1}` : ''}</div>
-            {bars.map((barNo) => {
+            {bars.map((barNo, index) => {
+                const width = widths[index];
                 const inBar = syllables.filter((s) => s.bar === barNo).sort((a, b) => a.beat - b.beat);
                 const active = mode === 'lyrics' && cursor.verse === verse && cursor.part === part && cursor.bar === barNo;
                 const pick = (event: MouseEvent<HTMLElement>) => {
@@ -508,7 +940,7 @@ function WordsRow({
                     const starts = noteStarts(document, part, barNo);
                     const beats = beatsInBar(document.map, barNo);
                     const box = event.currentTarget.getBoundingClientRect();
-                    const at = ((event.clientX - box.left - PAD) / INNER) * beats;
+                    const at = ((event.clientX - box.left - PAD) / (box.width - PAD)) * beats;
                     const beat = [...starts].reverse().find((s) => s <= at + 0.25) ?? starts[0] ?? 0;
 
                     onWords(verse, part, barNo, beat);
@@ -523,7 +955,11 @@ function WordsRow({
                         <div
                             key={barNo}
                             onClick={pick}
-                            className="flex h-6.5 w-41.25 shrink-0 cursor-text items-center gap-0.75 overflow-hidden border-l border-ink bg-wash pl-1.5"
+                            style={{ width }}
+                            className={cn(
+                                'flex h-6.5 shrink-0 cursor-text items-center gap-0.75 overflow-hidden border-l border-ink bg-wash pl-1.5',
+                                closing(index, bars, document.bars),
+                            )}
                         >
                             {slots.map((beat) => {
                                 const s = syllableAt(document, verse, part, barNo, beat);
@@ -556,7 +992,8 @@ function WordsRow({
                     <div
                         key={barNo}
                         onClick={pick}
-                        className={cn('flex h-6.5 w-41.25 shrink-0 items-center border-l border-ink pl-2.5', mode === 'lyrics' && 'cursor-text')}
+                        style={{ width }}
+                        className={cn('flex h-6.5 shrink-0 items-center border-l border-ink pl-2.5', closing(index, bars, document.bars), mode === 'lyrics' && 'cursor-text')}
                     >
                         {inBar.length > 0 ? (
                             <span className={cn('w-max text-[13px] leading-4 whitespace-pre italic', extra ? 'text-pencil' : 'text-ink')}>

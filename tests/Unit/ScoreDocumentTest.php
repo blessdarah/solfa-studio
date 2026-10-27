@@ -182,6 +182,52 @@ class ScoreDocumentTest extends TestCase
         ScoreDocument::fromArray($data);
     }
 
+    public function test_a_note_held_over_the_bar_line_is_kept_as_a_tie(): void
+    {
+        $data = ScoreDocument::blank(bars: 2)->toArray();
+        $data['parts'][0]['bars'][0]['notes'] = [['pitch' => 'd', 'octave' => 0, 'start' => 3, 'length' => 1]];
+        $data['parts'][0]['bars'][1]['notes'] = [['pitch' => 'd', 'octave' => 0, 'start' => 0, 'length' => 1, 'tie' => true]];
+
+        $doc = ScoreDocument::fromArray($data);
+        $tied = $doc->part(Voice::Soprano)?->bar(2)?->notes[0];
+
+        $this->assertTrue($tied?->tie);
+        $this->assertFalse($doc->part(Voice::Soprano)?->bar(1)?->notes[0]->tie);
+        $this->assertSame(true, $tied?->toArray()['tie'] ?? null);
+        $this->assertArrayNotHasKey('tie', $doc->part(Voice::Soprano)?->bar(1)?->notes[0]->toArray() ?? []);
+    }
+
+    public function test_a_beat_can_hold_a_triplet(): void
+    {
+        $data = ScoreDocument::blank(bars: 2)->toArray();
+        $third = 1 / 3;
+        $data['parts'][0]['bars'][0]['notes'] = [
+            ['pitch' => 'f', 'octave' => 0, 'start' => 0, 'length' => $third],
+            ['pitch' => 'f', 'octave' => 0, 'start' => $third, 'length' => $third],
+            ['pitch' => 'f', 'octave' => 0, 'start' => 2 / 3, 'length' => $third],
+            ['pitch' => 's', 'octave' => 0, 'start' => 3 + 2 / 3, 'length' => $third],
+        ];
+
+        $doc = ScoreDocument::fromArray($data);
+
+        $this->assertCount(4, $doc->part(Voice::Soprano)?->bar(1)?->notes ?? []);
+    }
+
+    public function test_a_part_taken_out_of_a_bar_is_kept_as_tacet(): void
+    {
+        $data = ScoreDocument::blank(bars: 4)->toArray();
+        $data['parts'][2]['bars'][1]['tacet'] = true;
+
+        $doc = ScoreDocument::fromArray($data);
+
+        $this->assertTrue($doc->part(Voice::Tenor)?->bar(2)?->tacet);
+        $this->assertFalse($doc->part(Voice::Tenor)?->bar(1)?->tacet);
+        $this->assertTrue(ScoreDocument::fromArray($doc->toArray())->part(Voice::Tenor)?->bar(2)?->tacet);
+
+        unset($data['parts'][2]['bars'][1]['tacet']);
+        $this->assertFalse(ScoreDocument::fromArray($data)->part(Voice::Tenor)?->bar(2)?->tacet);
+    }
+
     public function test_done_bars_drive_part_progress(): void
     {
         $doc = $this->withAltoBar10(ScoreDocument::blank(bars: 16));

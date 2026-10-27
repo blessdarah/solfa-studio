@@ -47,7 +47,7 @@ class Harmonizer
             'You write tonic sol-fa for Ghanaian SATB choirs.',
             "Doh is {$score->doh}. Style: ".($document->style ?? 'anthem').'.',
             "Write the {$voice->label()} part for bars {$from}–{$to}, fitting the other parts below.",
-            'Notes use pitch (d r m f fe s l ta t), octave (-1 low, 0 middle, 1 high), start and length in beats from the start of the bar.',
+            'Notes use pitch (d r m f fe s l ta t), octave (-2 two below, -1 low, 0 middle, 1 high, 2 two above), start and length in beats from the start of the bar.',
             'Notes in a bar must not overlap and must fit the number of beats.',
             'Reply with JSON only: [{"bar": 10, "notes": [{"pitch": "m", "octave": 0, "start": 0, "length": 1}]}]',
             '',

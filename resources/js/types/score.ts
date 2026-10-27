@@ -10,8 +10,8 @@ export type Voice = 'S' | 'A' | 'T' | 'B';
 
 export type Pitch = 'd' | 'r' | 'm' | 'f' | 'fe' | 's' | 'l' | 'ta' | 't' | 'rest';
 
-/** -1 = low (d₁), 0 = middle (d), 1 = high (d'). */
-export type Octave = -1 | 0 | 1;
+/** -2 = two below (d₂), -1 = low (d₁), 0 = middle (d), 1 = high (d'), 2 = two above (d''). */
+export type Octave = -2 | -1 | 0 | 1 | 2;
 
 export type NoteSource = 'typed' | 'scan' | 'ai';
 
@@ -23,6 +23,8 @@ export type Note = {
     /** Length in beats: 1, 0.5, 2… */
     length: number;
     source: NoteSource;
+    /** Carries on the note before it over a bar line: written "–", sung on, not struck again. */
+    tie?: boolean;
 };
 
 export type Bar = {
@@ -31,6 +33,8 @@ export type Bar = {
     notes: Note[];
     /** Marked finished by the composer — drives "Alto 9/16". */
     done: boolean;
+    /** The part rests here on purpose (taken out of these bars); its line is left off the sheet. */
+    tacet?: boolean;
 };
 
 export type Part = {
