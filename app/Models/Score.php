@@ -8,6 +8,7 @@ use App\Enums\ScoreStatus;
 use App\Enums\ShareAccess;
 use App\Exceptions\StaleScoreVersion;
 use App\Music\ScoreDocument;
+use App\Music\SyllableJoin;
 use Carbon\CarbonImmutable;
 use Database\Factories\ScoreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -15,13 +16,16 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * One piece of music. The searchable facts are columns; the music is
@@ -38,6 +42,18 @@ use Illuminate\Support\Facades\DB;
  * @property ScoreDocument $document
  * @property int $version
  * @property CarbonImmutable|null $archived_at
+ * @property string|null $slug the public page is /p/{slug}
+ * @property CarbonImmutable|null $published_at
+ * @property int|null $published_version the version that was published
+ * @property array{title: string, composer: string|null, arranger: string|null, doh: string, document: array<string, mixed>}|null $published
+ * @property string|null $search_text
+ * @property bool $listed shows in public search
+ * @property bool $allow_play
+ * @property bool $allow_print
+ * @property bool $show_words
+ * @property int $visits
+ * @property int $plays
+ * @property CarbonImmutable|null $deleted_at
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property-read User $owner
@@ -46,7 +62,12 @@ use Illuminate\Support\Facades\DB;
 class Score extends Model
 {
     /** @use HasFactory<ScoreFactory> */
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, MassPrunable, SoftDeletes;
+
+    /**
+     * Deleted scores wait this long in "Recently deleted" before they go for good.
+     */
+    public const KEEP_DELETED_DAYS = 30;
 
     /**
      * Keys a choir can sing in, as written after "Doh is".
@@ -65,6 +86,12 @@ class Score extends Model
     protected $attributes = [
         'status' => 'draft',
         'version' => 1,
+        'listed' => true,
+        'allow_play' => true,
+        'allow_print' => true,
+        'show_words' => true,
+        'visits' => 0,
+        'plays' => 0,
     ];
 
     protected static function booted(): void
@@ -91,7 +118,140 @@ class Score extends Model
             'document' => AsScoreDocument::class,
             'version' => 'integer',
             'archived_at' => 'datetime',
+            'published_at' => 'datetime',
+            'published_version' => 'integer',
+            'published' => 'array',
+            'listed' => 'boolean',
+            'allow_play' => 'boolean',
+            'allow_print' => 'boolean',
+            'show_words' => 'boolean',
+            'visits' => 'integer',
+            'plays' => 'integer',
         ];
+    }
+
+    /**
+     * Scores deleted more than 30 days ago are removed by `model:prune`.
+     *
+     * @return Builder<Score>
+     */
+    public function prunable(): Builder
+    {
+        return static::onlyTrashed()->where('deleted_at', '<=', now()->subDays(self::KEEP_DELETED_DAYS));
+    }
+
+    // ------------------------------------------------------------ publishing
+
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null && $this->published !== null;
+    }
+
+    /**
+     * Edited since it was last published ("Published · newer edits").
+     */
+    public function hasUnpublishedChanges(): bool
+    {
+        if (! $this->isPublished()) {
+            return false;
+        }
+
+        $published = $this->published ?? [];
+
+        return $this->version !== $this->published_version
+            || ($published['title'] ?? null) !== $this->title
+            || ($published['composer'] ?? null) !== $this->composer
+            || ($published['arranger'] ?? null) !== $this->arranger
+            || ($published['doh'] ?? null) !== $this->doh;
+    }
+
+    /**
+     * Publish the score as it is now: anyone with /p/{slug} can read, play
+     * and print this version until it is published again.
+     */
+    public function publish(): void
+    {
+        $this->slug ??= $this->uniqueSlug();
+        $this->published_at = now();
+        $this->published_version = $this->version;
+        $this->published = [
+            'title' => $this->title,
+            'composer' => $this->composer,
+            'arranger' => $this->arranger,
+            'doh' => $this->doh,
+            'document' => $this->document->toArray(),
+        ];
+        $this->search_text = self::searchTextFor($this->title, $this->composer, $this->arranger, $this->document);
+
+        if ($this->status === ScoreStatus::Draft) {
+            $this->status = ScoreStatus::Shared;
+        }
+
+        $this->save();
+    }
+
+    /**
+     * Take the public page down. The slug is kept, so publishing again
+     * brings the same link back.
+     */
+    public function unpublish(): void
+    {
+        $this->forceFill(['published_at' => null, 'published' => null, 'published_version' => null, 'search_text' => null])->save();
+    }
+
+    /**
+     * The music as published.
+     */
+    public function publishedDocument(): ?ScoreDocument
+    {
+        $published = $this->published;
+
+        return isset($published['document']) ? ScoreDocument::fromArray($published['document']) : null;
+    }
+
+    /**
+     * Title, composer, arranger and every verse's words, lower case, so a
+     * line someone half-remembers finds the song.
+     */
+    public static function searchTextFor(string $title, ?string $composer, ?string $arranger, ScoreDocument $document): string
+    {
+        $words = collect($document->verses)->map(function ($verse): string {
+            $text = '';
+
+            foreach ($verse->syllables as $syllable) {
+                $text .= $syllable->text.($syllable->join === SyllableJoin::Split ? '' : ' ');
+            }
+
+            return trim($text);
+        });
+
+        return Str::lower(trim(implode("\n", array_filter([$title, $composer, $arranger, ...$words->all(), $document->style]))));
+    }
+
+    /**
+     * "Onyame Ye" → "onyame-ye", or "onyame-ye-2" when that is taken.
+     */
+    private function uniqueSlug(): string
+    {
+        $base = Str::slug(Str::ascii($this->title)) ?: 'song';
+        $slug = $base;
+
+        for ($n = 2; static::withTrashed()->where('slug', $slug)->whereKeyNot($this->getKey())->exists(); $n++) {
+            $slug = "{$base}-{$n}";
+        }
+
+        return $slug;
+    }
+
+    /**
+     * Published scores that show in public search.
+     *
+     * @param  Builder<Score>  $query
+     */
+    #[Scope]
+    protected function listedPublicly(Builder $query): void
+    {
+        $query->whereNotNull('published_at')->where('listed', true);
     }
 
     /**
@@ -146,7 +306,7 @@ class Score extends Model
      *
      * @throws StaleScoreVersion
      */
-    public function restore(ScoreVersion $snapshot, ?User $by = null): void
+    public function restoreVersion(ScoreVersion $snapshot, ?User $by = null): void
     {
         $this->saveDocument($snapshot->document, $this->version, $by, "Restored version {$snapshot->version}");
     }

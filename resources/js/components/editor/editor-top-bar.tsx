@@ -14,7 +14,7 @@ const MODES: { mode: EditorMode | 'check'; label: string }[] = [
 
 /**
  * The compose screen's top bar (Paper W1): logo, "Scores / Onyame Ye",
- * the save state, the mode switch, Play, Share and the account initial.
+ * the save state, the mode switch, Play, Print, Publish and the account initial.
  */
 export function EditorTopBar({
     user,
@@ -32,6 +32,7 @@ export function EditorTopBar({
     activePart,
     onShare,
     canShare,
+    published = false,
     onPrint,
 }: {
     user: User;
@@ -49,6 +50,8 @@ export function EditorTopBar({
     activePart: Voice;
     onShare: () => void;
     canShare: boolean;
+    /** Already has a public page: the button reads "Published". */
+    published?: boolean;
     onPrint: () => void;
 }) {
     return (
@@ -127,7 +130,8 @@ export function EditorTopBar({
                         onClick={onShare}
                         className="flex h-9 items-center rounded-full bg-ink px-4 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
                     >
-                        <span className="text-[14px] leading-4.5 font-semibold">Share</span>
+                        {published && <span className="mr-1.5 size-2 rounded-full bg-[#5CC27A]" />}
+                        <span className="text-[14px] leading-4.5 font-semibold">{published ? 'Published' : 'Publish'}</span>
                     </button>
                 )}
                 <AvatarMenu user={user} size="lg" />

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useDismiss } from '@/lib/use-dismiss';
 import { SparkleIcon } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { syllableAt } from '@/lib/editor';
@@ -20,12 +21,14 @@ import {
     formatBar,
 } from '@/lib/music';
 import { cn } from '@/lib/utils';
+import { slurNotes } from '@/lib/slurs';
+import type { SlurRun } from '@/lib/slurs';
 import type { Pass } from '@/lib/music';
 import { lyricTokens, placeWords, wordsStart } from '@/lib/lyrics';
 import type { LyricToken } from '@/lib/lyrics';
 import { parseLine, typeLine } from '@/lib/typing';
 import type { TypingAction } from '@/lib/typing';
-import type { MapEvent, ScoreDocument, Voice, WordsUnder } from '@/types';
+import type { MapEvent, ScoreDocument, SlurPlace, Voice, WordsUnder } from '@/types';
 
 function Label({ children }: { children: string }) {
     return <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">{children}</div>;
@@ -75,6 +78,8 @@ export function NotesInspector({
     onNav,
     onPass,
     onLine,
+    slur,
+    onSlur,
 }: {
     document: ScoreDocument;
     doh: string;
@@ -89,6 +94,9 @@ export function NotesInspector({
     onNav: (value: '$' | 'DS' | 'Fine') => void;
     onPass: (pass: Pass | null) => void;
     onLine: (actions: TypingAction[]) => void;
+    /** The slur the cursor's note is in, and what to do to it. */
+    slur: SlurRun | null;
+    onSlur: (change: 'longer' | 'shorter' | 'remove' | SlurPlace) => void;
 }) {
     const part = partOf(document, cursor.part);
     const note = noteAt(part, cursor.bar, cursor.beat);
@@ -102,6 +110,9 @@ export function NotesInspector({
 
     return (
         <Panel>
+            {slur ? (
+                <SlurPanel document={document} cursor={cursor} slur={slur} canEdit={canEdit} onSlur={onSlur} />
+            ) : (
             <div className="flex flex-col gap-3">
                 <Label>SELECTED</Label>
                 <div className="flex items-end gap-3.5">
@@ -131,6 +142,7 @@ export function NotesInspector({
                     </div>
                 </div>
             </div>
+            )}
 
             {canEdit && <TypeLine document={document} cursor={cursor} onLine={onLine} />}
 
@@ -281,7 +293,7 @@ function TypeLine({ document, cursor, onLine }: { document: ScoreDocument; curso
                 <p className="text-[12px] leading-4.5 text-pencil">
                     Notes as on the keypad: <span className="font-solfa text-ink">' ,</span> octave, <span className="font-solfa text-ink">-</span> hold,{' '}
                     <span className="font-solfa text-ink">.</span> split, <span className="font-solfa text-ink">f,f,f</span> triplet,{' '}
-                    <span className="font-solfa text-ink">x</span> rest,{' '}
+                    <span className="font-solfa text-ink">x</span> rest, <span className="font-solfa text-ink">(s l s)</span> slur,{' '}
                     <span className="font-solfa text-ink">|</span> next bar. Spaces are ignored.
                 </p>
             )}
@@ -480,6 +492,316 @@ const UNDER: { value: WordsUnder; label: string }[] = [
     { value: 'each', label: 'Each part' },
 ];
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * One verse in the words panel: pick it to type into it; on hover a "⋯"
+ * opens its menu — clear its words, or delete the verse (asks once more).
+ */
+function VerseRow({
+    document,
+    index,
+    active,
+    canEdit,
+    onPick,
+    onClear,
+    onDelete,
+}: {
+    document: ScoreDocument;
+    index: number;
+    active: boolean;
+    canEdit: boolean;
+    onPick: () => void;
+    onClear: () => void;
+    onDelete: () => void;
+}) {
+    const verse = document.verses[index];
+    const [menu, setMenu] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+    const [confirming, setConfirming] = useState(false);
+    const row = useRef<HTMLDivElement>(null);
+    const box = useRef<HTMLDivElement>(null);
+    const close = useCallback(() => {
+        setMenu(null);
+        setConfirming(false);
+    }, []);
+
+    useDismiss(box, menu !== null, close);
+
+    const filled = new Set(verse.syllables.map((s) => s.bar)).size;
+    const count = verse.syllables.length;
+
+    const open = () => {
+        const rect = row.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const left = Math.max(8, rect.right - 252);
+        // Near the foot of the window the menu opens upwards instead.
+        setMenu(rect.bottom + 200 > window.innerHeight ? { left, bottom: window.innerHeight - rect.top + 4 } : { left, top: rect.bottom + 4 });
+    };
+
+    return (
+        <div ref={box}>
+            <div ref={row} className={cn('group flex h-9 shrink-0 items-center rounded-sm pr-1', active || menu ? 'bg-copy' : 'hover:bg-copy/60')}>
+                <button type="button" onClick={onPick} className="flex h-full grow basis-0 items-center justify-between gap-2 pl-2.5 text-left outline-none">
+                    <span className={cn('truncate text-[14px] leading-4.5 text-ink', active && 'font-semibold')}>
+                        {verse.label} · {langLabel(verse.lang)}
+                    </span>
+                    <span className={cn('pr-1.5 font-solfa text-[12px] leading-4 text-pencil', canEdit && (menu ? 'hidden' : 'group-focus-within:hidden group-hover:hidden'))}>
+                        {filled}/{document.bars}
+                    </span>
+                </button>
+                {canEdit && (
+                    <button
+                        type="button"
+                        onClick={() => (menu ? close() : open())}
+                        aria-haspopup="menu"
+                        aria-expanded={menu !== null}
+                        aria-label={`${verse.label} options`}
+                        className={cn(
+                            'size-7 shrink-0 items-center justify-center rounded-sm border border-rule bg-paper text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                            menu ? 'flex' : 'hidden group-focus-within:flex group-hover:flex',
+                        )}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+                            <circle cx="3" cy="7" r="1.3" />
+                            <circle cx="7" cy="7" r="1.3" />
+                            <circle cx="11" cy="7" r="1.3" />
+                        </svg>
+                    </button>
+                )}
+            </div>
+
+            {menu && (
+                <div
+                    role="menu"
+                    className="fixed z-50 flex w-63 flex-col gap-1 rounded-md border border-rule bg-paper p-1.5 shadow-[0_20px_50px_#00000024]"
+                    style={{ left: menu.left, top: menu.top, bottom: menu.bottom }}
+                >
+                    <div className="flex flex-col gap-0.5 px-2.5 pt-2 pb-2.5">
+                        <div className="text-[13px] leading-4.25 font-semibold text-ink">{verse.label}</div>
+                        <div className="text-[11.5px] leading-3.75 text-pencil">
+                            {count === 0 ? 'No words yet' : `${plural(count, 'syllable')} in ${filled} of ${document.bars} bars`}
+                        </div>
+                    </div>
+                    <div className="h-px bg-rule" />
+                    <button
+                        type="button"
+                        role="menuitem"
+                        disabled={count === 0}
+                        onClick={() => {
+                            close();
+                            onClear();
+                        }}
+                        className="flex h-11 items-center gap-2.5 rounded-[8px] px-2.5 text-left hover:bg-copy disabled:opacity-40 disabled:hover:bg-transparent"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path
+                                d="M6.2 13.5h7.3M2.9 9.6l5.6-5.6a1.4 1.4 0 0 1 2 0l2 2a1.4 1.4 0 0 1 0 2l-5.1 5.1a1.4 1.4 0 0 1-1 .4H5a1.4 1.4 0 0 1-1-.4L2.9 12a1.7 1.7 0 0 1 0-2.4Z"
+                                stroke="#6B6B6B"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                        <span className="flex flex-col gap-px">
+                            <span className="text-[13.5px] leading-4.5 font-medium text-ink">Clear its words</span>
+                            <span className="text-[11.5px] leading-3.75 text-pencil">Keeps the verse, empty</span>
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                            if (count > 0 && !confirming) {
+                                setConfirming(true);
+
+                                return;
+                            }
+
+                            close();
+                            onDelete();
+                        }}
+                        className={cn('flex h-11 items-center gap-2.5 rounded-[8px] px-2.5 text-left hover:bg-danger/6', confirming && 'bg-danger/8')}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path
+                                d="M2.5 4.2h11M6.3 4.2V2.9c0-.4.3-.7.7-.7h2c.4 0 .7.3.7.7v1.3M4 4.2l.6 8.6c.1.7.6 1.2 1.3 1.2h4.2c.7 0 1.2-.5 1.3-1.2l.6-8.6M6.7 7v4.4M9.3 7v4.4"
+                                stroke="#B42318"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                        <span className="flex flex-col gap-px">
+                            <span className="text-[13.5px] leading-4.5 font-semibold text-danger">{confirming ? 'Click again to delete' : `Delete ${verse.label.toLowerCase()}`}</span>
+                            <span className="text-[11.5px] leading-3.75 text-pencil">
+                                {confirming ? `Loses ${plural(count, 'syllable')} · ⌘ Z undoes` : 'Takes it out of the score'}
+                            </span>
+                        </span>
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** A small slur curve, for the slur panel. */
+function SlurCurve({ width, height, stroke = 1.8 }: { width: number; height: number; stroke?: number }) {
+    return (
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+            <path d={`M3 ${height - 2} Q${width / 2} ${-height + 4} ${width - 3} ${height - 2}`} fill="none" stroke="#111111" strokeWidth={stroke} strokeLinecap="round" />
+        </svg>
+    );
+}
+
+/**
+ * A slur selected (Paper W9): which notes it covers, a −/+ for how many,
+ * how the words fall on it, over or under, and Remove — plus the
+ * difference between a hold and a slur.
+ */
+function SlurPanel({
+    document,
+    cursor,
+    slur,
+    canEdit,
+    onSlur,
+}: {
+    document: ScoreDocument;
+    cursor: Cursor;
+    slur: SlurRun;
+    canEdit: boolean;
+    onSlur: (change: 'longer' | 'shorter' | 'remove' | SlurPlace) => void;
+}) {
+    const notes = slurNotes(document, cursor.part, slur);
+    const labels = notes.map((n) => noteLabel(n)).join(' ');
+    const bars = slur.from.bar === slur.to.bar ? `bar ${slur.from.bar}` : `bars ${slur.from.bar}–${slur.to.bar}`;
+    const verse = document.verses.findIndex((v) => v.syllables.some((s) => s.part === cursor.part && s.bar === slur.from.bar && Math.abs(s.beat - slur.from.beat) < 1e-6));
+    const syllable = verse >= 0 ? syllableAt(document, verse, cursor.part, slur.from.bar, slur.from.beat) : undefined;
+
+    return (
+        <>
+            <div className="flex flex-col gap-3">
+                <Label>SELECTED</Label>
+                <div className="flex items-end gap-3.5">
+                    <div className="flex size-18 shrink-0 flex-col items-center justify-center gap-0.5 rounded-md bg-marker px-1.5">
+                        <SlurCurve width={46} height={12} />
+                        <span className="max-w-full truncate font-solfa text-[17px] leading-5 whitespace-pre text-ink">{notes.length <= 3 ? labels : `${noteLabel(notes[0])} … ${noteLabel(notes[notes.length - 1])}`}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.75 pb-1">
+                        <div className="text-[16px] leading-5 font-semibold text-ink">
+                            Slur · {VOICE_NAMES[cursor.part]} · {bars}
+                        </div>
+                        <div className="text-[13px] leading-4 text-pencil">{notes.length} notes</div>
+                        <div className="text-[13px] leading-4 text-pencil">Sung on one syllable, smoothly</div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-3.5 border-t border-rule pt-5">
+                <Label>THE SLUR</Label>
+                <div className="flex h-9 items-center justify-between">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[13.5px] leading-4.25 text-ink">Notes under it</span>
+                        <span className="text-[11.5px] leading-3.75 text-pencil">( longer · ) shorter</span>
+                    </div>
+                    <div className="flex items-center gap-0.5 rounded-full bg-copy p-0.75">
+                        <button
+                            type="button"
+                            disabled={!canEdit}
+                            onClick={() => onSlur('shorter')}
+                            aria-label="One note fewer"
+                            className="flex size-7.5 items-center justify-center rounded-full bg-paper text-[16px] leading-4.5 text-ink hover:bg-paper/70 disabled:opacity-40"
+                        >
+                            −
+                        </button>
+                        <span className="w-7.5 text-center font-solfa text-[14px] leading-4.5 text-ink">{notes.length}</span>
+                        <button
+                            type="button"
+                            disabled={!canEdit}
+                            onClick={() => onSlur('longer')}
+                            aria-label="One note more"
+                            className="flex size-7.5 items-center justify-center rounded-full bg-paper text-[16px] leading-4.5 text-ink hover:bg-paper/70 disabled:opacity-40"
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 rounded-md bg-copy px-3 py-2.5">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[12px] leading-4 font-semibold text-pencil">Words</span>
+                        {verse >= 0 && <span className="text-[12px] leading-4 text-pencil">{document.verses[verse].label}</span>}
+                    </div>
+                    <div className="flex items-baseline gap-2.5">
+                        <span className="font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">{labels}</span>
+                        {syllable && <span className="text-[14px] leading-4.5 text-ink italic">{syllable.text}______</span>}
+                    </div>
+                    <div className="text-[12px] leading-4 text-pencil">
+                        {syllable
+                            ? `“${syllable.text}” is held over all ${notes.length} notes. Typed words skip the slurred notes.`
+                            : 'The syllable on the first note is held over the rest. Typed words skip the slurred notes.'}
+                    </div>
+                </div>
+
+                <div className="flex h-9 items-center justify-between gap-3">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[13.5px] leading-4.25 whitespace-nowrap text-ink">Draw it</span>
+                        <span className="text-[11.5px] leading-3.75 whitespace-nowrap text-pencil">Over or under</span>
+                    </div>
+                    <div className="flex shrink-0 gap-0.5 rounded-full bg-copy p-0.75">
+                        {(['over', 'under'] as const).map((place) => (
+                            <button
+                                key={place}
+                                type="button"
+                                disabled={!canEdit}
+                                aria-pressed={slur.place === place}
+                                onClick={() => onSlur(place)}
+                                className={cn(
+                                    'flex h-7 items-center rounded-full px-3 text-[12.5px] leading-4',
+                                    slur.place === place ? 'bg-paper font-semibold text-ink' : 'text-pencil hover:text-ink',
+                                )}
+                            >
+                                {place === 'over' ? 'Above' : 'Below'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {canEdit && (
+                    <button
+                        type="button"
+                        onClick={() => onSlur('remove')}
+                        className="flex h-10 items-center justify-between rounded-full border border-rule px-3.5 hover:bg-danger/6"
+                    >
+                        <span className="text-[14px] leading-4.5 font-semibold text-danger">Remove slur</span>
+                    </button>
+                )}
+            </div>
+
+            <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
+                <Label>TIE OR SLUR?</Label>
+                <div className="flex gap-2.5">
+                    <div className="flex grow basis-0 flex-col gap-1.5 rounded-sm border border-rule p-2.5">
+                        <span className="font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">d :–</span>
+                        <span className="text-[12px] leading-4 font-semibold text-ink">Hold · “–”</span>
+                        <span className="text-[11.5px] leading-3.75 text-pencil">Same note, kept sounding</span>
+                    </div>
+                    <div className="flex grow basis-0 flex-col gap-1.5 rounded-sm border-[1.5px] border-ink p-2.5">
+                        <span className="relative font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">
+                            <span className="absolute -top-2 left-0">
+                                <SlurCurve width={30} height={8} stroke={1.3} />
+                            </span>
+                            s :l
+                        </span>
+                        <span className="text-[12px] leading-4 font-semibold text-ink">Slur · “(”</span>
+                        <span className="text-[11.5px] leading-3.75 text-pencil">Different notes, one breath</span>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+}
+
 /**
  * Words mode (Paper W2): the syllable on each note of the bar being typed,
  * where the words print, and the verses.
@@ -492,6 +814,8 @@ export function LyricsInspector({
     onVerse,
     onAddTranslation,
     onWords,
+    onClearVerse,
+    onDeleteVerse,
 }: {
     document: ScoreDocument;
     cursor: LyricCursor;
@@ -500,6 +824,8 @@ export function LyricsInspector({
     onVerse: (index: number) => void;
     onAddTranslation: () => void;
     onWords: (tokens: LyricToken[]) => void;
+    onClearVerse: (index: number) => void;
+    onDeleteVerse: (index: number) => void;
 }) {
     const verse = document.verses[cursor.verse];
     const beats = beatsInBar(document.map, cursor.bar);
@@ -578,26 +904,18 @@ export function LyricsInspector({
                 <div className="pb-1.5">
                     <Label>VERSES</Label>
                 </div>
-                {document.verses.map((v, index) => {
-                    const filled = new Set(v.syllables.map((s) => s.bar)).size;
-                    const active = index === cursor.verse;
-
-                    return (
-                        <button
-                            key={v.id}
-                            type="button"
-                            onClick={() => onVerse(index)}
-                            className={cn('flex h-9 shrink-0 items-center justify-between rounded-sm px-2.5 text-left', active ? 'bg-copy' : 'hover:bg-copy/60')}
-                        >
-                            <span className={cn('text-[14px] leading-4.5 text-ink', active && 'font-semibold')}>
-                                {v.label} · {langLabel(v.lang)}
-                            </span>
-                            <span className="font-solfa text-[12px] leading-4 text-pencil">
-                                {filled}/{document.bars}
-                            </span>
-                        </button>
-                    );
-                })}
+                {document.verses.map((v, index) => (
+                    <VerseRow
+                        key={v.id}
+                        document={document}
+                        index={index}
+                        active={index === cursor.verse}
+                        canEdit={canEdit}
+                        onPick={() => onVerse(index)}
+                        onClear={() => onClearVerse(index)}
+                        onDelete={() => onDeleteVerse(index)}
+                    />
+                ))}
                 {canEdit && !hasEnglish && (
                     <button type="button" onClick={onAddTranslation} className="flex h-9 shrink-0 items-center px-2.5 text-left">
                         <span className="text-[14px] leading-4.5 text-pencil hover:text-ink">+ English translation</span>

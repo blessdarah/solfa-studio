@@ -11,9 +11,11 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_root_sends_people_to_the_dashboard(): void
+    public function test_the_root_is_the_public_home_page(): void
     {
-        $this->get('/')->assertRedirect('/dashboard');
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('public/home')->where('signed_in', false));
     }
 
     public function test_the_login_screen_can_be_rendered(): void

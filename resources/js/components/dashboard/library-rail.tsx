@@ -9,6 +9,7 @@ import {
     LogOutIcon,
     PlusIcon,
     ScanIcon,
+    TrashIcon,
     UsersIcon,
 } from '@/components/icons';
 import { dashboardUrl } from '@/lib/dashboard-url';
@@ -211,6 +212,9 @@ export function LibraryRail({
                 ? (id: string) => post(`/scores/${id}/archive`)
                 : undefined,
         },
+        ...(nav.deleted > 0 || filters.view === 'deleted'
+            ? [{ view: 'deleted' as const, label: 'Recently deleted', icon: TrashIcon, count: nav.deleted }]
+            : []),
     ];
 
     return (

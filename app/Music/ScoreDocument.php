@@ -146,6 +146,16 @@ final readonly class ScoreDocument implements JsonSerializable
     }
 
     /**
+     * The same music with a different style label ("Highlife", "Hymn").
+     */
+    public function withStyle(?string $style): self
+    {
+        $style = $style !== null && trim($style) !== '' ? trim($style) : null;
+
+        return new self($this->bars, $this->map, $this->parts, $this->verses, $this->marks, $this->sections, $this->footnotes, $style, $this->wordsUnder);
+    }
+
+    /**
      * @param  list<Mark>  $marks
      */
     public function withMarks(array $marks): self

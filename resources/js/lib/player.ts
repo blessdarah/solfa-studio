@@ -39,6 +39,15 @@ export type Playback = {
     timeline: BarTime[];
     /** Change which parts sound while playback runs. */
     hear: (voices: Voice[]) => void;
+    /** Set how loud each part is (0 silent … 1 full), e.g. your part loud, the others soft. */
+    mix: (levels: Partial<Record<Voice, number>>) => void;
+};
+
+export type PlayOptions = {
+    /** Starting loudness per part (0–1); parts not named follow `heard`. */
+    levels?: Partial<Record<Voice, number>>;
+    /** 0.5 plays at half speed, for learning a part. */
+    speed?: number;
 };
 
 const NOTE_VOLUME = 0.16;
@@ -49,7 +58,8 @@ const NOTE_VOLUME = 0.16;
  * `heard`. Each part runs through its own gain, so parts can be muted or
  * brought back mid-play.
  */
-export function play(document: ScoreDocument, doh: string, steps: PlayStep[], heard: Voice[]): Playback {
+export function play(document: ScoreDocument, doh: string, steps: PlayStep[], heard: Voice[], options: PlayOptions = {}): Playback {
+    const speed = Math.max(0.25, Math.min(2, options.speed ?? 1));
     const ctx = audio();
     const master = ctx.createGain();
     master.gain.value = 0.8;
@@ -59,7 +69,7 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
 
     for (const part of document.parts) {
         const gain = ctx.createGain();
-        gain.gain.value = heard.includes(part.id) ? 1 : 0;
+        gain.gain.value = options.levels?.[part.id] ?? (heard.includes(part.id) ? 1 : 0);
         gain.connect(master);
         gains.set(part.id, gain);
     }
@@ -67,13 +77,22 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
     const oscillators: OscillatorNode[] = [];
     const timeline: BarTime[] = [];
     // Tones are gathered first so a tied note (held over a bar line) lengthens the one before it.
-    const tones: { voice: Voice; midi: number; start: number; seconds: number; gain: GainNode }[] = [];
+    const tones: {
+        voice: Voice;
+        midi: number;
+        start: number;
+        seconds: number;
+        gain: GainNode;
+        /** Slurred on into the next note. */
+        slur: boolean;
+        glide: { midi: number; at: number }[];
+    }[] = [];
     const lastTone = new Map<Voice, (typeof tones)[number]>();
     let time = ctx.currentTime + 0.08;
     for (const { bar, pass } of steps) {
         // A hold only carries on from the bar just before; after a jump (D.S.) it starts afresh.
         if (timeline.length > 0 && timeline[timeline.length - 1].bar !== bar - 1) lastTone.clear();
-        const lengths = beatSeconds(document, bar);
+        const lengths = beatSeconds(document, bar).map((seconds) => seconds / speed);
         const startOf = (beat: number) => {
             let seconds = 0;
 
@@ -104,7 +123,17 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
                     continue;
                 }
 
-                const tone = { voice: part.id, midi: midi + OCTAVE_SHIFT[part.id], start, seconds, gain };
+                const pitch = midi + OCTAVE_SHIFT[part.id];
+
+                // Inside a slur the sound carries on and glides to the new pitch.
+                if (previous?.slur && Math.abs(previous.start + previous.seconds - start) < 0.01) {
+                    previous.glide.push({ midi: pitch, at: start });
+                    previous.seconds = start + seconds - previous.start;
+                    previous.slur = !!note.slur;
+                    continue;
+                }
+
+                const tone = { voice: part.id, midi: pitch, start, seconds, gain, slur: !!note.slur, glide: [] };
                 tones.push(tone);
                 lastTone.set(part.id, tone);
             }
@@ -115,7 +144,7 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
         time += total;
     }
 
-    for (const tone of tones) oscillators.push(playTone(tone.midi, tone.start, tone.seconds, NOTE_VOLUME, tone.gain));
+    for (const tone of tones) oscillators.push(playTone(tone.midi, tone.start, tone.seconds, NOTE_VOLUME, tone.gain, tone.glide));
 
     return {
         endsAt: time,
@@ -123,6 +152,12 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
         hear: (voices) => {
             gains.forEach((gain, voice) => {
                 gain.gain.setTargetAtTime(voices.includes(voice) ? 1 : 0, ctx.currentTime, 0.02);
+            });
+        },
+        mix: (levels) => {
+            gains.forEach((gain, voice) => {
+                const level = levels[voice];
+                if (level !== undefined) gain.gain.setTargetAtTime(Math.max(0, Math.min(1, level)), ctx.currentTime, 0.02);
             });
         },
         stop: () => {

@@ -197,6 +197,32 @@ class ScoreDocumentTest extends TestCase
         $this->assertArrayNotHasKey('tie', $doc->part(Voice::Soprano)?->bar(1)?->notes[0]->toArray() ?? []);
     }
 
+    public function test_a_slur_is_kept_with_where_it_is_drawn(): void
+    {
+        $data = ScoreDocument::blank(bars: 2)->toArray();
+        $data['parts'][0]['bars'][0]['notes'] = [
+            ['pitch' => 's', 'octave' => 0, 'start' => 0, 'length' => 1, 'slur' => 'over'],
+            ['pitch' => 'l', 'octave' => 0, 'start' => 1, 'length' => 1, 'slur' => 'under'],
+            ['pitch' => 's', 'octave' => 0, 'start' => 2, 'length' => 1],
+        ];
+
+        $notes = ScoreDocument::fromArray($data)->part(Voice::Soprano)?->bar(1)?->notes ?? [];
+
+        $this->assertSame('over', $notes[0]->slur);
+        $this->assertSame('under', $notes[1]->toArray()['slur'] ?? null);
+        $this->assertArrayNotHasKey('slur', $notes[2]->toArray());
+    }
+
+    public function test_a_slur_must_be_over_or_under(): void
+    {
+        $data = ScoreDocument::blank(bars: 1)->toArray();
+        $data['parts'][0]['bars'][0]['notes'] = [['pitch' => 's', 'octave' => 0, 'start' => 0, 'length' => 1, 'slur' => 'sideways']];
+
+        $this->expectException(InvalidScoreDocument::class);
+
+        ScoreDocument::fromArray($data);
+    }
+
     public function test_a_beat_can_hold_a_triplet(): void
     {
         $data = ScoreDocument::blank(bars: 2)->toArray();

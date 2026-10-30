@@ -200,3 +200,43 @@ export function XIcon({ size = 12, className, strokeWidth = 1.6 }: IconProps) {
         </Svg>
     );
 }
+
+export function TrashIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
+    return (
+        <Svg size={size} className={className}>
+            <path
+                d="M2.5 4.2h11M6.3 4.2V2.9c0-.4.3-.7.7-.7h2c.4 0 .7.3.7.7v1.3M4 4.2l.6 8.6c.1.7.6 1.2 1.3 1.2h4.2c.7 0 1.2-.5 1.3-1.2l.6-8.6M6.7 7v4.4M9.3 7v4.4"
+                {...line(strokeWidth)}
+            />
+        </Svg>
+    );
+}
+
+export function PrintIcon({ size = 16, className, strokeWidth = 1.4 }: IconProps) {
+    return (
+        <Svg size={size} className={className}>
+            <path
+                d="M4.5 6V2.5h7V6M4.5 11.5h-1A1.5 1.5 0 0 1 2 10V7.5A1.5 1.5 0 0 1 3.5 6h9A1.5 1.5 0 0 1 14 7.5V10a1.5 1.5 0 0 1-1.5 1.5h-1M4.5 9.5h7v4h-7z"
+                {...line(strokeWidth)}
+            />
+        </Svg>
+    );
+}
+
+export function LoopIcon({ size = 15, className, strokeWidth = 1.4 }: IconProps) {
+    return (
+        <Svg size={size} className={className}>
+            <path d="M3 7.5V6a2 2 0 0 1 2-2h8M11 2l2 2-2 2M13 8.5V10a2 2 0 0 1-2 2H3M5 14l-2-2 2-2" {...line(strokeWidth)} />
+        </Svg>
+    );
+}
+
+/** ↻ — a passage playing over and over. */
+export function RepeatIcon({ size = 14, className, strokeWidth = 1.6 }: IconProps) {
+    return (
+        <Svg size={size} className={className}>
+            <path d="M13 8.2a5 5 0 1 1-1.5-3.6" {...line(strokeWidth)} />
+            <path d="M12 1.8v3.2H8.8" {...line(strokeWidth)} />
+        </Svg>
+    );
+}

@@ -8,7 +8,8 @@ import {
     barSegments,
     emptyBar,
     formatBar,
-    formatWords,
+    placeSyllables,
+    partOf,
     keyLabel,
     partHasNotes,
     layoutLines,
@@ -20,7 +21,9 @@ import { useDismiss } from '@/lib/use-dismiss';
 import { cn } from '@/lib/utils';
 import { PlayHead } from '@/components/editor/play-head';
 import type { Playback } from '@/lib/player';
-import type { EditorMode, Mark, Part, ScoreDocument, Syllable, Voice } from '@/types';
+import { slurAt, slurRuns } from '@/lib/slurs';
+import type { SlurRun } from '@/lib/slurs';
+import type { EditorMode, Mark, Note, Part, ScoreDocument, Syllable, Voice } from '@/types';
 
 /** Column geometry from the Paper sheet: a 24px label lane, then bars at least 165px wide. */
 const LANE = 24;
@@ -279,6 +282,47 @@ export function solfaSize(document: ScoreDocument, barNo: number, width: number,
     return Math.max(9, Math.min(14, Math.floor((room / Math.max(1, longest) / charWidth) * 2) / 2));
 }
 
+/**
+ * A bar's words, each syllable under the note it is sung on (lined up with
+ * the sol-fa above, `fontSize` being that bar's sol-fa size), with a hold
+ * line after a held syllable. Used on screen and on paper.
+ */
+export function SyllableLine({
+    notes,
+    beats,
+    syllables,
+    fontSize,
+    width,
+    className,
+}: {
+    notes: Note[];
+    beats: number;
+    syllables: Syllable[];
+    fontSize: number;
+    width: number;
+    className?: string;
+}) {
+    const placed = placeSyllables(notes, beats, syllables, fontSize * 0.6);
+
+    return (
+        <>
+            {placed.map((s, i) => {
+                const next = placed[i + 1];
+                const holdTo = s.join === 'hold' ? (next ? next.x - 4 : width - PAD - 6) : null;
+
+                return (
+                    <span key={`${s.beat}-${i}`} className="absolute top-1/2 -translate-y-1/2" style={{ left: PAD + s.x }}>
+                        <span className={cn('text-[13px] leading-4 whitespace-pre italic', className)}>{s.text}</span>
+                        {holdTo !== null && holdTo > s.x + s.width + 2 && (
+                            <span className="absolute bottom-0.5 h-px bg-ink" style={{ left: s.width + 2, width: holdTo - s.x - s.width - 2 }} />
+                        )}
+                    </span>
+                );
+            })}
+        </>
+    );
+}
+
 export type BarToolActions = {
     onInsert: (at: number) => void;
     onDuplicate: (bar: number) => void;
@@ -391,12 +435,109 @@ function BarTools({
     );
 }
 
+type SlurPath = { d: string; ends: { x: number; y: number }[]; selected: boolean };
+
+/**
+ * The slurs of one part over one line of bars, drawn on top of its row.
+ * The notes' places are measured from the row itself (the spans marked
+ * data-slot inside each data-cell), so the curve sits on the notes however
+ * the bar is sized, the cursor bar included. A slur running on past the
+ * line leaves it open and comes back in from the start of the next line.
+ */
+export function SlurLayer({ part, bars, selected = null }: { part: Part | undefined; bars: number[]; selected?: SlurRun | null }) {
+    const svg = useRef<SVGSVGElement>(null);
+    const [paths, setPaths] = useState<{ key: string; list: SlurPath[]; clip: { left: number; right: number } }>({ key: '', list: [], clip: { left: 0, right: 0 } });
+    const first = bars[0];
+    const last = bars[bars.length - 1];
+    const runs = slurRuns(part).filter((r) => r.to.bar >= first && r.from.bar <= last);
+
+    useLayoutEffect(() => {
+        const row = svg.current?.parentElement;
+
+        if (!row || runs.length === 0) {
+            if (paths.key !== '') setPaths({ key: '', list: [], clip: { left: 0, right: 0 } });
+
+            return;
+        }
+
+        const box = row.getBoundingClientRect();
+        const scale = box.width / (row.offsetWidth || box.width || 1);
+        const local = (r: DOMRect) => ({ left: (r.left - box.left) / scale, right: (r.right - box.left) / scale, top: (r.top - box.top) / scale, bottom: (r.bottom - box.top) / scale });
+        const cells = [...row.querySelectorAll<HTMLElement>('[data-cell]')];
+
+        if (cells.length === 0) return;
+
+        const left = local(cells[0].getBoundingClientRect()).left;
+        const right = local(cells[cells.length - 1].getBoundingClientRect()).right;
+
+        const spot = (bar: number, beat: number) => {
+            const cell = row.querySelector<HTMLElement>(`[data-cell="${bar}"]`);
+            const span = [...(cell?.querySelectorAll<HTMLElement>('[data-slot]') ?? [])].find((el) => Math.abs(Number(el.dataset.slot) - beat) < 1e-3);
+
+            return span ? local(span.getBoundingClientRect()) : null;
+        };
+
+        const list: SlurPath[] = [];
+
+        for (const run of runs) {
+            const a = run.from.bar >= first ? spot(run.from.bar, run.from.beat) : null;
+            const b = run.to.bar <= last ? spot(run.to.bar, run.to.beat) : null;
+            const any = a ?? b;
+
+            if (!any || (run.from.bar >= first && !a) || (run.to.bar <= last && !b)) continue;
+
+            const under = run.place === 'under';
+            const y = under ? any.bottom - 1 : any.top + 1;
+            // Open ends reach past the line's edge (and are clipped there), as if the curve went on.
+            const x0 = a ? (a.left + a.right) / 2 : left - 28;
+            const x1 = b ? (b.left + b.right) / 2 : right + 28;
+            const rise = Math.min(9, 3.5 + (x1 - x0) * 0.035) * 2 * (under ? 1 : -1);
+            const ends = [a ? { x: x0, y } : null, b ? { x: x1, y } : null].filter((e): e is { x: number; y: number } => e !== null);
+            const isSelected = !!selected && selected.from.bar === run.from.bar && Math.abs(selected.from.beat - run.from.beat) < 1e-6;
+
+            list.push({ d: `M${x0.toFixed(1)} ${y.toFixed(1)} Q${((x0 + x1) / 2).toFixed(1)} ${(y + rise).toFixed(1)} ${x1.toFixed(1)} ${y.toFixed(1)}`, ends, selected: isSelected });
+        }
+
+        const key = JSON.stringify([list, left, right]);
+
+        if (key !== paths.key) setPaths({ key, list, clip: { left, right } });
+    });
+
+    const clipId = `slurs-${part?.id ?? ''}-${first}`;
+
+    return (
+        <svg ref={svg} aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible">
+            <defs>
+                <clipPath id={clipId}>
+                    <rect x={paths.clip.left} y={-40} width={Math.max(0, paths.clip.right - paths.clip.left)} height={120} />
+                </clipPath>
+            </defs>
+            <g clipPath={`url(#${clipId})`}>
+                {paths.list.map((p, i) => (
+                    <path key={i} d={p.d} fill="none" stroke="#111111" strokeWidth={p.selected ? 1.8 : 1.15} strokeLinecap="round" />
+                ))}
+            </g>
+            {paths.list
+                .filter((p) => p.selected)
+                .flatMap((p) => p.ends)
+                .map((e, i) => (
+                    <circle key={`e${i}`} cx={e.x} cy={e.y} r={3.5} fill="var(--color-marker)" stroke="#111111" strokeWidth={1.4} />
+                ))}
+        </svg>
+    );
+}
+
 /** A bar's sol-fa as spans that know their beat, so a click lands on the exact note. */
-function Pieces({ pieces }: { pieces: BarSegment[] }) {
+export function Pieces({ pieces, hover = true }: { pieces: BarSegment[]; hover?: boolean }) {
     return (
         <>
             {pieces.map((p, i) => (
-                <span key={i} data-at={p.at} className={p.kind === 'slot' && p.text !== '' ? 'hover:bg-copy' : undefined}>
+                <span
+                    key={i}
+                    data-at={p.at}
+                    data-slot={p.kind === 'slot' && p.text !== '' && p.text !== '–' ? p.at : undefined}
+                    className={p.kind === 'slot' && p.text !== '' && hover ? 'hover:bg-copy' : undefined}
+                >
                     {p.text}
                 </span>
             ))}
@@ -425,6 +566,7 @@ export function Sheet({
     onRest,
     onBringBack,
     barTools,
+    focusPart = null,
 }: {
     document: ScoreDocument;
     title: string;
@@ -448,8 +590,11 @@ export function Sheet({
     onBringBack?: (part: Voice, bars: number[]) => void;
     /** Hover a bar to add a bar before / after it, copy it or delete it (Paper W7). */
     barTools?: BarToolActions;
+    /** "I sing Alto" on the public page (Paper W14): that line stands out, the others step back. */
+    focusPart?: Voice | null;
 }) {
     const root = useRef<HTMLDivElement | null>(null);
+    const cursorSlur = slurAt(document, cursor);
     const [hoverBar, setHoverBar] = useState<number | null>(null);
     // Leaving a bar hides its tools only after a moment, so a slightly wobbly pointer can still reach them.
     const leaveTimer = useRef<number | null>(null);
@@ -700,6 +845,7 @@ export function Sheet({
                                 className={cn(
                                     'group relative flex h-7 shrink-0 items-center',
                                     restMenu?.part === row.part.id && restMenu.bars[0] === bars[0] ? 'bg-copy/60' : canEdit && 'hover:bg-copy/60',
+                                    focusPart !== null && (focusPart === row.part.id ? 'bg-wash font-bold' : 'opacity-45'),
                                 )}
                             >
                                 {canEdit && onRest && (
@@ -729,6 +875,7 @@ export function Sheet({
                                 >
                                     {row.part.id}
                                 </div>
+                                <SlurLayer part={row.part} bars={bars} selected={mode === 'notes' && cursor.part === row.part.id ? cursorSlur : null} />
                                 {bars.map((barNo, index) => {
                                     const beats = beatsInBar(document.map, barNo);
                                     const notes = row.part.bars[barNo - 1]?.notes ?? [];
@@ -746,6 +893,7 @@ export function Sheet({
                                         return (
                                             <div
                                                 key={barNo}
+                                                data-cell={barNo}
                                                 onClick={(e) => onCell(row.part.id, barNo, clickBeat(e, beats))}
                                                 style={{ width }}
                                                 className={cn(
@@ -759,7 +907,11 @@ export function Sheet({
                                                     </span>
                                                 )}
                                                 <span className="flex h-5.5 items-center gap-px rounded-[4px] bg-marker px-1.5 outline-2 outline-ink outline-solid">
-                                                    {at !== '' && <span style={fit} className="font-solfa text-[14px] leading-4.5 text-ink">{at}</span>}
+                                                    {at !== '' && (
+                                                        <span style={fit} data-slot={at !== '–' ? cursor.beat : undefined} className="font-solfa text-[14px] leading-4.5 text-ink">
+                                                            {at}
+                                                        </span>
+                                                    )}
                                                     <span className="h-3.75 w-0.5 shrink-0 animate-pulse bg-ink" />
                                                 </span>
                                                 {after.some((p) => p.text.trim() !== '') && (
@@ -774,6 +926,7 @@ export function Sheet({
                                     return (
                                         <div
                                             key={barNo}
+                                            data-cell={barNo}
                                             onClick={(e) => mode === 'notes' && onCell(row.part.id, barNo, clickBeat(e, beats))}
                                             style={{ width }}
                                             className={cn(
@@ -993,12 +1146,17 @@ function WordsRow({
                         key={barNo}
                         onClick={pick}
                         style={{ width }}
-                        className={cn('flex h-6.5 shrink-0 items-center border-l border-ink pl-2.5', closing(index, bars, document.bars), mode === 'lyrics' && 'cursor-text')}
+                        className={cn('relative flex h-6.5 shrink-0 items-center border-l border-ink pl-2.5', closing(index, bars, document.bars), mode === 'lyrics' && 'cursor-text')}
                     >
                         {inBar.length > 0 ? (
-                            <span className={cn('w-max text-[13px] leading-4 whitespace-pre italic', extra ? 'text-pencil' : 'text-ink')}>
-                                {formatWords(inBar)}
-                            </span>
+                            <SyllableLine
+                                notes={partOf(document, part)?.bars[barNo - 1]?.notes ?? []}
+                                beats={beatsInBar(document.map, barNo)}
+                                syllables={inBar}
+                                fontSize={solfaSize(document, barNo, width)}
+                                width={width}
+                                className={extra ? 'text-pencil' : 'text-ink'}
+                            />
                         ) : extra && mode === 'lyrics' ? (
                             <span className="text-[12px] leading-4 text-ghost">+ verse {verse + 1}</span>
                         ) : null}

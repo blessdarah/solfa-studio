@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { MarksRow, closing, hasMarks, solfaSize } from '@/components/editor/sheet';
+import { MarksRow, Pieces, SlurLayer, SyllableLine, closing, hasMarks, solfaSize } from '@/components/editor/sheet';
 import { wordsPart } from '@/lib/editor';
-import { barPass, beatsInBar, formatBar, formatWords, keyLabel, layoutLines, tempoAt, timeLabel, VOICE_NAMES, VOICES } from '@/lib/music';
+import { barPass, beatsInBar, barSegments, keyLabel, layoutLines, tempoAt, timeLabel, VOICE_NAMES, VOICES } from '@/lib/music';
 import type { SheetLine } from '@/lib/music';
 import { cn } from '@/lib/utils';
 import type { ScoreDocument, Voice } from '@/types';
@@ -68,7 +68,7 @@ function PrintLine({ doc, verses, line, first }: { doc: ScoreDocument; verses: n
 
     const cells = (render: (bar: number, index: number) => ReactNode, height: string) =>
         bars.map((bar, index) => (
-            <div key={bar} style={{ width: widths[index] }} className={cn('flex shrink-0 items-center border-l border-ink pl-2.5', height, closing(index, bars, doc.bars))}>
+            <div key={bar} data-cell={bar} style={{ width: widths[index] }} className={cn('relative flex shrink-0 items-center border-l border-ink pl-2.5', height, closing(index, bars, doc.bars))}>
                 {render(bar, index)}
             </div>
         ));
@@ -108,14 +108,15 @@ function PrintLine({ doc, verses, line, first }: { doc: ScoreDocument; verses: n
 
                 return (
                     <div key={part.id} className="contents">
-                        <div className="flex h-5 shrink-0 items-center">
+                        <div className="relative flex h-5 shrink-0 items-center">
                             <div className="w-6 shrink-0 font-display text-[12px] leading-4 font-extrabold text-ink">{part.id}</div>
+                            <SlurLayer part={part} bars={bars} />
                             {cells((bar, index) => {
                                 const notes = part.bars[bar - 1]?.notes ?? [];
 
                                 return (
                                     <span style={{ fontSize: solfaSize(doc, bar, widths[index], 4) }} className="w-max font-solfa text-[14px] leading-4.5 whitespace-pre text-ink">
-                                        {notes.length > 0 ? formatBar(notes, beatsInBar(doc.map, bar)) : ''}
+                                        {notes.length > 0 ? <Pieces pieces={barSegments(notes, beatsInBar(doc.map, bar))} hover={false} /> : ''}
                                     </span>
                                 );
                             }, 'h-5')}
@@ -125,11 +126,15 @@ function PrintLine({ doc, verses, line, first }: { doc: ScoreDocument; verses: n
                             .map((r) => (
                                 <div key={`${r.part}-${r.verse}`} className="flex h-4.5 shrink-0 items-center">
                                     <div className="w-6 shrink-0 text-[10px] leading-3 font-bold text-pencil">{r.verse > 0 ? `v${r.verse + 1}` : ''}</div>
-                                    {cells((bar) => {
-                                        const inBar = doc.verses[r.verse].syllables.filter((s) => s.part === r.part && s.bar === bar).sort((a, b) => a.beat - b.beat);
-
-                                        return <span className="w-max text-[13px] leading-4 whitespace-pre text-ink italic">{formatWords(inBar)}</span>;
-                                    }, 'h-4.5')}
+                                    {cells((bar, index) => (
+                                        <SyllableLine
+                                            notes={doc.parts.find((p) => p.id === r.part)?.bars[bar - 1]?.notes ?? []}
+                                            beats={beatsInBar(doc.map, bar)}
+                                            syllables={doc.verses[r.verse].syllables.filter((s) => s.part === r.part && s.bar === bar)}
+                                            fontSize={solfaSize(doc, bar, widths[index], 4)}
+                                            width={widths[index]}
+                                        />
+                                    ), 'h-4.5')}
                                 </div>
                             ))}
                     </div>

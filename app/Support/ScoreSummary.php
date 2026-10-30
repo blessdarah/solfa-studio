@@ -45,6 +45,10 @@ use Carbon\CarbonInterface;
  *     shared: bool,
  *     share_can: string|null,
  *     share_label: string|null,
+ *     published: bool,
+ *     publishing: array<string, mixed>,
+ *     deleted_at: string|null,
+ *     deleted_days_left: int|null,
  *     preview: list<array{beats: int, notes: list<array<string, mixed>>}>
  * }
  */
@@ -130,6 +134,12 @@ final class ScoreSummary
             'shared' => $score->shares->isNotEmpty(),
             'share_can' => $share?->can->value,
             'share_label' => $share ? self::shareLabel($share->can) : null,
+            'published' => $score->isPublished(),
+            'publishing' => Publishing::state($score),
+            'deleted_at' => $score->deleted_at?->toIso8601String(),
+            'deleted_days_left' => $score->deleted_at !== null
+                ? max(0, Score::KEEP_DELETED_DAYS - (int) $score->deleted_at->diffInDays(now()))
+                : null,
             'preview' => self::preview($document),
         ];
     }

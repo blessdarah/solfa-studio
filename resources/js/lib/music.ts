@@ -537,13 +537,20 @@ export type BarSizing = { min?: number; chip?: number };
 export function barWidth(document: ScoreDocument, barNo: number, sizing: BarSizing = {}): number {
     const beats = beatsInBar(document.map, barNo);
     const notes = Math.max(0, ...document.parts.map((p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length));
+    // Words sit under their notes; the bar must reach the end of the last one.
     const words = Math.max(
         0,
         ...document.verses.flatMap((v) =>
-            VOICES.map((voice) => formatWords(v.syllables.filter((s) => s.part === voice && s.bar === barNo).sort((a, b) => a.beat - b.beat)).length),
+            VOICES.map((voice) => {
+                const inBar = v.syllables.filter((s) => s.part === voice && s.bar === barNo);
+                const placed = placeSyllables(partOf(document, voice)?.bars[barNo - 1]?.notes ?? [], beats, inBar, SOLFA_CHAR);
+                const last = placed[placed.length - 1];
+
+                return last ? last.x + last.width + 12 : 0;
+            }),
         ),
     );
-    const needed = BAR_PAD + Math.max(notes * SOLFA_CHAR + (sizing.chip ?? CHIP_ROOM), words * WORD_CHAR + 12) + 6;
+    const needed = BAR_PAD + Math.max(notes * SOLFA_CHAR + (sizing.chip ?? CHIP_ROOM), words) + 6;
 
     return Math.max(sizing.min ?? BAR_MIN_WIDTH, Math.ceil(needed));
 }
@@ -594,4 +601,56 @@ export function layoutLines(document: ScoreDocument, lineWidth = LINE_WIDTH, siz
 /** The line that bar `bar` is printed on. */
 export function lineOf(lines: SheetLine[], bar: number): SheetLine | undefined {
     return lines.find((l) => l.bars.includes(bar));
+}
+
+// ------------------------------------------------------------ words under their notes
+
+let measurer: CanvasRenderingContext2D | null | undefined;
+
+/** Width of a syllable in the words font (13px Inter italic); an estimate where there's no canvas. */
+export function wordWidth(text: string): number {
+    if (measurer === undefined) {
+        try {
+            measurer = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+            if (measurer) measurer.font = 'italic 13px Inter, ui-sans-serif, system-ui, sans-serif';
+        } catch {
+            measurer = null;
+        }
+    }
+
+    return measurer ? measurer.measureText(text).width : [...text].length * WORD_CHAR;
+}
+
+export type PlacedSyllable = { text: string; x: number; width: number; join: Syllable['join']; beat: number };
+
+const WORD_GAP = 7;
+
+/**
+ * Where each syllable of a bar sits: under the note it is sung on — at that
+ * note's place in the sol-fa text (`charWidth` per character) — and, when a
+ * long word would run into the next, pushed just far enough along to read.
+ */
+export function placeSyllables(notes: Note[], beats: number, syllables: Syllable[], charWidth: number): PlacedSyllable[] {
+    const columns: { at: number; col: number }[] = [];
+    let col = 0;
+
+    for (const piece of barSegments(notes, beats)) {
+        if (piece.kind === 'slot' && piece.text !== '') columns.push({ at: piece.at, col });
+        col += [...piece.text].length;
+    }
+
+    const placed: PlacedSyllable[] = [];
+    let end = -WORD_GAP;
+
+    for (const s of [...syllables].sort((a, b) => a.beat - b.beat)) {
+        const column = columns.find((c) => Math.abs(c.at - s.beat) < 1e-4)?.col ?? (s.beat / Math.max(1, beats)) * col;
+        const text = s.join === 'split' ? `${s.text}–` : s.text;
+        const width = wordWidth(text);
+        const x = Math.max(column * charWidth, end + WORD_GAP);
+
+        placed.push({ text, x, width, join: s.join, beat: s.beat });
+        end = x + width;
+    }
+
+    return placed;
 }

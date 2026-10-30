@@ -1,3 +1,4 @@
+import type { Publishing } from './publishing';
 import type { DohKey, Note, ScoreOrigin, ScoreStatus, ShareAccess, Voice } from './score';
 
 export type VoiceState = 'complete' | 'started' | 'empty' | 'flagged';
@@ -39,12 +40,18 @@ export type ScoreSummary = {
     shared: boolean;
     share_can: ShareAccess | null;
     share_label: string | null;
+    /** Has a public page (Paper W13). */
+    published: boolean;
+    publishing: Publishing;
+    /** In "Recently deleted": when, and how many days are left before it goes. */
+    deleted_at: string | null;
+    deleted_days_left: number | null;
     /** Up to four bars of the busiest voice, for the resume card's sketch. */
     preview: { beats: number; notes: Note[] }[];
 };
 
-export type DashboardView = 'all' | 'review' | 'shared' | 'archive' | 'collection' | 'rehearsal';
-export type DashboardKind = 'all' | 'composed' | 'arrangements';
+export type DashboardView = 'all' | 'review' | 'shared' | 'archive' | 'deleted' | 'collection' | 'rehearsal';
+export type DashboardKind = 'all' | 'composed' | 'arrangements' | 'published';
 export type DashboardSort = 'edited' | 'title' | 'key';
 
 export type DashboardFilters = {
@@ -100,14 +107,14 @@ export type NotificationItem = {
 
 export type DashboardProps = {
     workspace: Workspace;
-    nav: { all: number; review: number; shared: number; archive: number };
+    nav: { all: number; review: number; shared: number; archive: number; deleted: number };
     collections: CollectionItem[];
     heading: string;
     scores: ScoreSummary[];
     shown: number;
     filtered_total: number;
     kinds: Record<DashboardKind, number>;
-    counts: { all: number; review: number; shared: number; ready: number };
+    counts: { all: number; review: number; shared: number; ready: number; published: number };
     resume: ScoreSummary | null;
     /** Every score in the library, for picking a rehearsal plan. */
     choices: { id: string; title: string }[];

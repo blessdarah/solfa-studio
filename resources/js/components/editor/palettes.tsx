@@ -73,6 +73,8 @@ export type NoteAction =
     | { type: 'hold' }
     | { type: 'half' }
     | { type: 'triplet' }
+    | { type: 'slur' }
+    | { type: 'unslur' }
     | { type: 'rest' }
     | { type: 'next' };
 
@@ -81,7 +83,7 @@ export type NoteAction =
  * keys, hold / half-beat / rest, and Next beat. Each key shows its
  * keyboard shortcut.
  */
-export function NotePalette({ current, onAction }: { current: Pitch | null; onAction: (action: NoteAction) => void }) {
+export function NotePalette({ current, slurred = false, onAction }: { current: Pitch | null; slurred?: boolean; onAction: (action: NoteAction) => void }) {
     return (
         <div className="flex w-max items-center gap-3.5 rounded-[16px] bg-ink px-3 py-2.5 shadow-[0_16px_40px_#00000040]">
             <div className="flex gap-1">
@@ -111,6 +113,13 @@ export function NotePalette({ current, onAction }: { current: Pitch | null; onAc
                     hint="3"
                     title="Triplet: three notes in one beat — f 3 f f gives f,f,f"
                     onPress={() => onAction({ type: 'triplet' })}
+                />
+                <Key
+                    label="⌒"
+                    hint="("
+                    title="Slur into the next note — sung on one syllable. Press again to cover one more; ) takes one off"
+                    active={slurred}
+                    onPress={() => onAction({ type: 'slur' })}
                 />
                 <Key
                     label="Rest"

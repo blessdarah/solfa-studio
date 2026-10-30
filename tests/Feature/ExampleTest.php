@@ -9,10 +9,8 @@ class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_application_redirects_to_the_dashboard(): void
+    public function test_the_home_page_opens_without_an_account(): void
     {
-        $response = $this->get(route('home'));
-
-        $response->assertRedirect('/dashboard');
+        $this->get(route('home'))->assertOk();
     }
 }

@@ -23,6 +23,7 @@ export function midiToHz(midi: number): number {
 
 /**
  * A soft, organ-like tone: a triangle wave with a short fade in and out.
+ * `glide` moves it to new pitches on the way (a slur) without a new attack.
  */
 export function playTone(
     midi: number,
@@ -30,6 +31,7 @@ export function playTone(
     seconds: number,
     volume = 0.18,
     destination?: AudioNode,
+    glide: { midi: number; at: number }[] = [],
 ): OscillatorNode {
     const ctx = audio();
     const osc = ctx.createOscillator();
@@ -37,6 +39,13 @@ export function playTone(
 
     osc.type = 'triangle';
     osc.frequency.value = midiToHz(midi);
+
+    // Slurred notes: one sound that glides to each new pitch instead of starting again.
+    if (glide.length > 0) osc.frequency.setValueAtTime(midiToHz(midi), at);
+
+    for (const step of glide) {
+        osc.frequency.setTargetAtTime(midiToHz(step.midi), Math.max(at, step.at - 0.01), 0.012);
+    }
 
     const end = at + Math.max(0.08, seconds * 0.94);
     gain.gain.setValueAtTime(0, at);

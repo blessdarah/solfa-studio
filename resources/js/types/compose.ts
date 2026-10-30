@@ -1,3 +1,4 @@
+import type { Publishing } from './publishing';
 import type { DohKey, ScoreDocument, Voice } from './score';
 
 /** What the compose screen (Paper W1–W3) receives. */
@@ -18,6 +19,8 @@ export type ComposeProps = {
     start_part: Voice | null;
     /** Whether "Suggest alto for bars 10–12" can reach the AI. */
     suggestions: boolean;
+    /** The public page, for the owner's Publish dialog. */
+    publishing: Publishing | null;
 };
 
 export type EditorMode = 'notes' | 'lyrics';

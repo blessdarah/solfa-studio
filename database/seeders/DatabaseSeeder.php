@@ -12,7 +12,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $user = User::factory()->create([
+        User::factory()->create([
             'name' => 'Blessdaraah',
             'email' => 'test@example.com',
             'phone' => '+233241234567',
@@ -20,7 +20,5 @@ class DatabaseSeeder extends Seeder
             'workspace_role' => 'Director',
             'plan' => 'free',
         ]);
-
-        $this->callWith(DemoLibrarySeeder::class, ['owner' => $user]);
     }
 }

@@ -25,9 +25,9 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public const VIEWS = ['all', 'review', 'shared', 'archive', 'collection', 'rehearsal'];
+    public const VIEWS = ['all', 'review', 'shared', 'archive', 'deleted', 'collection', 'rehearsal'];
 
-    public const KINDS = ['all', 'composed', 'arrangements'];
+    public const KINDS = ['all', 'composed', 'arrangements', 'published'];
 
     public const SORTS = ['edited', 'title', 'key'];
 
@@ -61,12 +61,16 @@ class DashboardController extends Controller
         }
 
         $owned = $this->summaries(Score::query()->where('owner_id', $user->id));
+        $deleted = $view === 'deleted'
+            ? $this->summaries(Score::onlyTrashed()->where('owner_id', $user->id))->sortByDesc('deleted_at')->values()
+            : collect();
         $active = $owned->where('archived', false)->values();
 
         $inView = match ($view) {
             'review' => $active->where('needs_review', true)->values(),
             'shared' => $this->summaries($user->sharedWithMe()->whereNull('archived_at')),
             'archive' => $owned->where('archived', true)->values(),
+            'deleted' => $deleted,
             'collection' => $this->only($active, $collection?->scores()->pluck('scores.id')),
             'rehearsal' => $this->only($active, $rehearsal?->scores()->pluck('scores.id'), keepOrder: true),
             default => $active,
@@ -78,15 +82,17 @@ class DashboardController extends Controller
             'all' => $searched->count(),
             'composed' => $searched->where('kind', 'composition')->count(),
             'arrangements' => $searched->where('kind', 'arrangement')->count(),
+            'published' => $searched->where('published', true)->count(),
         ];
 
         $filtered = match ($kind) {
             'composed' => $searched->where('kind', 'composition'),
             'arrangements' => $searched->where('kind', 'arrangement'),
+            'published' => $searched->where('published', true),
             default => $searched,
         };
 
-        $filtered = $view === 'rehearsal' && $sort === 'edited'
+        $filtered = ($view === 'rehearsal' || $view === 'deleted') && $sort === 'edited'
             ? $filtered->values()
             : $this->sort($filtered, $sort);
 
@@ -104,6 +110,7 @@ class DashboardController extends Controller
                 'review' => $active->where('needs_review', true)->count(),
                 'shared' => $user->sharedWithMe()->whereNull('archived_at')->count(),
                 'archive' => $owned->where('archived', true)->count(),
+                'deleted' => Score::onlyTrashed()->where('owner_id', $user->id)->count(),
             ],
             'collections' => $user->collections()
                 ->withCount(['scores' => fn (Builder $query) => $query->whereNull('archived_at')])
@@ -119,6 +126,7 @@ class DashboardController extends Controller
                 'review' => 'Needs review',
                 'shared' => 'Shared with me',
                 'archive' => 'Archive',
+                'deleted' => 'Recently deleted',
                 'collection' => $collection->name ?? 'Collection',
                 'rehearsal' => 'Rehearsal plan',
                 default => 'Your scores',
@@ -132,6 +140,7 @@ class DashboardController extends Controller
                 'review' => $active->where('needs_review', true)->count(),
                 'shared' => $active->where('shared', true)->count(),
                 'ready' => $active->where('ready', true)->count(),
+                'published' => $active->where('published', true)->count(),
             ],
             'resume' => $this->resume($active),
             'choices' => $active

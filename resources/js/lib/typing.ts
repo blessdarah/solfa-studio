@@ -20,6 +20,7 @@ import {
     shiftOctave,
 } from '@/lib/editor';
 import type { Cursor } from '@/lib/editor';
+import { dropWaitingSlur, extendSlur, followSlurs, shortenSlur, waitingSlur } from '@/lib/slurs';
 import type { Octave, Pitch, ScoreDocument } from '@/types/score';
 
 const EPS = 1e-6;
@@ -34,6 +35,10 @@ export type TypingAction =
     /** Make the note just typed the first of three in its beat (f,f,f). */
     | { type: 'triplet' }
     | { type: 'rest' }
+    /** "(": slur the note just typed (or under the cursor) into the next one, or stretch its slur. */
+    | { type: 'slur' }
+    /** ")": take the last note off the slur. */
+    | { type: 'unslur' }
     | { type: 'next' }
     | { type: 'bar' };
 
@@ -77,7 +82,9 @@ export function press(state: TypingState, action: TypingAction): TypingState {
     const target = typed?.note ?? cursor;
 
     // Past the last beat of the score there is nowhere left to write.
-    if (cursor.beat >= beatsInBar(doc.map, cursor.bar) - EPS && action.type !== 'octave' && action.type !== 'chromatic' && action.type !== 'half') {
+    const onTyped = ['octave', 'chromatic', 'half', 'slur', 'unslur'].includes(action.type);
+
+    if (cursor.beat >= beatsInBar(doc.map, cursor.bar) - EPS && !onTyped) {
         return { ...state, typed };
     }
 
@@ -87,10 +94,19 @@ export function press(state: TypingState, action: TypingAction): TypingState {
             // Write the note (or a rest), then move to where it ends — "." can still split it.
             const pitch: Pitch = action.type === 'rest' ? 'rest' : action.pitch;
             const octave = action.type === 'rest' ? 0 : (action.octave ?? 0);
+            const waiting = waitingSlur(doc, cursor);
+
+            // d ( d: a slur onto the same note is a hold, so it is written d :–.
+            if (waiting && waiting.pitch === pitch && waiting.octave === octave) {
+                return press({ ...state, document: dropWaitingSlur(doc, cursor), typed }, { type: 'hold' });
+            }
+
             const written = setNote(doc, cursor, pitch, octave);
             const moved = moveTo(cursor, endOf(written, cursor, cursor.beat) ?? Math.floor(cursor.beat + EPS) + 1, written);
+            // A slur waiting for this note now joins it: the words move on past it.
+            const document = waiting && pitch !== 'rest' ? followSlurs(moved.document, cursor.part) : moved.document;
 
-            return { document: moved.document, cursor: moved.cursor, typed: { note: cursor, after: moved.cursor } };
+            return { document, cursor: moved.cursor, typed: { note: cursor, after: moved.cursor } };
         }
         case 'octave':
             return { ...state, document: shiftOctave(doc, target, action.by), typed };
@@ -147,6 +163,10 @@ export function press(state: TypingState, action: TypingAction): TypingState {
 
             return { document: result.document, cursor: result.cursor, typed: { note: target, after: result.cursor } };
         }
+        case 'slur':
+            return { ...state, document: followSlurs(extendSlur(doc, target), target.part), typed };
+        case 'unslur':
+            return { ...state, document: shortenSlur(doc, target), typed };
         case 'next': {
             const next = nextBeat(doc, cursor);
             const document = next.bar !== cursor.bar ? markDone(doc, cursor.part, cursor.bar) : doc;
@@ -176,12 +196,20 @@ export type ParsedLine = { actions: TypingAction[] } | { error: string };
  *   ,  between     three notes in one beat — a triplet: f,f,f  d,–,r
  *   3              the same, as a key: f 3 f f → f,f,f
  *   x              a rest
+ *   ( )            a slur round the notes inside: (s-.l s) m
  *   |              start the next bar
  * Spaces are only for reading and are skipped.
  */
 export function parseLine(text: string): ParsedLine {
     const actions: TypingAction[] = [];
     const chars = [...text];
+    // Inside ( ): each note after the first is slurred on from the one before.
+    let slur: 'off' | 'opening' | 'on' = 'off';
+    const note = (action: TypingAction) => {
+        if (slur === 'on' && action.type === 'pitch') actions.push({ type: 'slur' });
+        if (slur === 'opening' && action.type === 'pitch') slur = 'on';
+        actions.push(action);
+    };
 
     for (let i = 0; i < chars.length; i++) {
         const c = chars[i];
@@ -189,14 +217,24 @@ export function parseLine(text: string): ParsedLine {
 
         if (/\s/.test(c)) continue;
 
+        if (c === '(') {
+            slur = 'opening';
+            continue;
+        }
+
+        if (c === ')') {
+            slur = 'off';
+            continue;
+        }
+
         if (lower === 'f' && chars[i + 1]?.toLowerCase() === 'e') {
-            actions.push({ type: 'pitch', pitch: 'fe', octave: 0 });
+            note({ type: 'pitch', pitch: 'fe', octave: 0 });
             i++;
         } else if (lower === 't' && chars[i + 1]?.toLowerCase() === 'a') {
-            actions.push({ type: 'pitch', pitch: 'ta', octave: 0 });
+            note({ type: 'pitch', pitch: 'ta', octave: 0 });
             i++;
         } else if ('drmfslt'.includes(lower)) {
-            actions.push({ type: 'pitch', pitch: lower as Pitch, octave: 0 });
+            note({ type: 'pitch', pitch: lower as Pitch, octave: 0 });
         } else if (c === "'" || c === '’' || c === '¹') {
             actions.push({ type: 'octave', by: 1 });
         } else if (c === ',' && /^[drmfsltx\-–—]$/i.test(chars[i + 1] ?? '')) {

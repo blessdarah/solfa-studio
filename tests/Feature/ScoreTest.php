@@ -77,7 +77,7 @@ class ScoreTest extends TestCase
         $original = $score->versions()->firstOrFail();
 
         $score->saveDocument($score->document->withMap([new MapEvent(1, 120, 3)]), 1, note: 'Try 3/4');
-        $score->restore($original);
+        $score->restoreVersion($original);
 
         $this->assertSame(3, $score->version);
         $this->assertSame(4, $score->fresh()?->document->beatsInBar(1));

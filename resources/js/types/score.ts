@@ -25,7 +25,14 @@ export type Note = {
     source: NoteSource;
     /** Carries on the note before it over a bar line: written "–", sung on, not struck again. */
     tie?: boolean;
+    /**
+     * Slurred into the next note: sung on, on the same syllable, gliding to
+     * the new pitch. Says where the curve is drawn — over or under the notes.
+     */
+    slur?: SlurPlace;
 };
+
+export type SlurPlace = 'over' | 'under';
 
 export type Bar = {
     /** 1-based bar number; bars[i].no === i + 1. */

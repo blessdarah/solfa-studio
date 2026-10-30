@@ -7,6 +7,8 @@
  * a word always wins: "Hal-le-lu-jah" is split exactly there.
  */
 import { noteStarts, setSyllable } from '@/lib/editor';
+import { partOf } from '@/lib/music';
+import { slotKey, slurStarts } from '@/lib/slurs';
 import type { ScoreDocument, SyllableJoin, Voice } from '@/types/score';
 
 const VOWELS = new Set([...'aeiouàáâäèéêëìíîïòóôöùúûüɛɔ']);
@@ -199,6 +201,7 @@ export function placeWords(document: ScoreDocument, verse: number, part: Voice, 
     }
 
     const used = slots.slice(0, tokens.length);
+    const starts = slurStarts(partOf(document, part));
     let next = document;
     const placed: PlacedWords['placed'] = [];
 
@@ -219,9 +222,11 @@ export function placeWords(document: ScoreDocument, verse: number, part: Voice, 
         }
 
         const slot = used[i];
-        const syllable = { bar: slot.bar, beat: slot.beat, text: token.text, join: token.join };
+        // The syllable on a slur's first note is held over the rest of it.
+        const join = starts.has(slotKey(slot.bar, slot.beat)) ? 'hold' : token.join;
+        const syllable = { bar: slot.bar, beat: slot.beat, text: token.text, join };
         placed.push(syllable);
-        next = setSyllable(next, verse, part, slot.bar, slot.beat, token.text, token.join);
+        next = setSyllable(next, verse, part, slot.bar, slot.beat, token.text, join);
     });
 
     const lastSlot = used[used.length - 1];

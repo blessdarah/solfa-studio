@@ -11,6 +11,7 @@ use App\Music\InvalidScoreDocument;
 use App\Music\ScoreDocument;
 use App\Music\Voice;
 use App\Support\Harmonizer;
+use App\Support\Publishing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -77,6 +78,7 @@ class ScoreController extends Controller
             'can_edit' => $score->isEditableBy($user),
             'is_owner' => $score->owner_id === $user->id,
             'start_part' => $part?->value,
+            'publishing' => $score->owner_id === $user->id ? Publishing::state($score) : null,
             'suggestions' => Harmonizer::available(),
         ]);
     }

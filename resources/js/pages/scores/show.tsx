@@ -8,6 +8,7 @@ import { Sheet } from '@/components/editor/sheet';
 import type { BarToolActions, LyricCursor } from '@/components/editor/sheet';
 import { DeletePartDialog } from '@/components/editor/delete-part-dialog';
 import { PrintView } from '@/components/editor/print-view';
+import { PublishDialog } from '@/components/scores/publish-dialog';
 import { EditorTopBar } from '@/components/editor/editor-top-bar';
 import { TempoPopover } from '@/components/editor/tempo-popover';
 import { Toast } from '@/components/toast';
@@ -25,6 +26,8 @@ import {
     bringBackPart,
     addSection,
     addVerse,
+    clearVerse,
+    deleteVerse,
     applyBars,
     applyMapChange,
     clearAt,
@@ -50,10 +53,11 @@ import type { PlayStep } from '@/lib/music';
 import { audio } from '@/lib/tone';
 import { play } from '@/lib/player';
 import { placeWords, wordsStart } from '@/lib/lyrics';
+import { extendSlur, followSlurs, placeSlur, removeSlur, shortenSlur, slurAt } from '@/lib/slurs';
 import { press, typeLine } from '@/lib/typing';
 import type { Typed, TypingAction } from '@/lib/typing';
 import type { Playback } from '@/lib/player';
-import type { Bar, ComposeProps, EditorMode, Pitch, ScoreDocument, SyllableJoin, Voice, WordsUnder } from '@/types';
+import type { Bar, ComposeProps, EditorMode, Pitch, Publishing, ScoreDocument, SlurPlace, SyllableJoin, Voice, WordsUnder } from '@/types';
 
 function xsrf(): string {
     const match = document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='));
@@ -123,7 +127,8 @@ export default function ScoreShow(props: ComposeProps) {
     const [mapBar, setMapBar] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [deletingPart, setDeletingPart] = useState<Voice | null>(null);
-    const [printing, setPrinting] = useState(false);
+    // "Print or save PDF" from the library opens straight into the print view.
+    const [printing, setPrinting] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('print'));
     const [suggesting, setSuggesting] = useState(false);
     const [playback, setPlayback] = useState<Playback | null>(null);
     const [playingStep, setPlayingStep] = useState<PlayStep | null>(null);
@@ -477,30 +482,17 @@ export default function ScoreShow(props: ComposeProps) {
         }
     };
 
-    // ------------------------------------------------------------ share
+    // ------------------------------------------------------------ publish
 
-    const share = async () => {
-        try {
-            const { ok, data } = await postJson<{ url?: string }>(`/scores/${score.id}/shares`, { can: 'practise' });
-
-            if (!ok || !data.url) {
-                setToast(data.message ?? 'Could not make a link.');
-
-                return;
-            }
-
-            await navigator.clipboard?.writeText(data.url).catch(() => undefined);
-            setToast('Link copied. Anyone with it can open and practise this score.');
-        } catch {
-            setToast('Could not reach the server.');
-        }
-    };
+    const [publishing, setPublishing] = useState<Publishing | null>(props.publishing);
+    const [publishOpen, setPublishOpen] = useState(false);
+    const closePublish = useCallback(() => setPublishOpen(false), []);
 
     // ------------------------------------------------------------ keyboard
 
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if (isTyping(event.target) || deletingPart || printing) return;
+            if (isTyping(event.target) || deletingPart || printing || publishOpen) return;
 
             const meta = event.metaKey || event.ctrlKey;
             const key = event.key;
@@ -563,6 +555,12 @@ export default function ScoreShow(props: ComposeProps) {
                     onNote({ type: 'half' });
                 } else if (key === '3') {
                     onNote({ type: 'triplet' });
+                } else if (key === '(') {
+                    event.preventDefault();
+                    onNote({ type: 'slur' });
+                } else if (key === ')') {
+                    event.preventDefault();
+                    onNote({ type: 'unslur' });
                 } else if (key.toLowerCase() === 'x' || key === ' ') {
                     event.preventDefault();
                     onNote({ type: 'rest' });
@@ -655,6 +653,21 @@ export default function ScoreShow(props: ComposeProps) {
 
     const verseLabel = doc.verses[lyric.verse]?.label ?? 'Verse 1';
 
+    /** The slur the cursor's note is in (Paper W9). */
+    const cursorSlur = useMemo(() => slurAt(doc, cursor), [doc, cursor]);
+
+    const onSlur = (change: 'longer' | 'shorter' | 'remove' | SlurPlace) => {
+        if (!canEdit || !cursorSlur) return;
+
+        // Act on the slur's first note, wherever in it the cursor is.
+        const at = { part: cursor.part, bar: cursorSlur.from.bar, beat: cursorSlur.from.beat };
+
+        if (change === 'longer') commit(followSlurs(extendSlur(doc, at), cursor.part));
+        else if (change === 'shorter') commit(shortenSlur(doc, at));
+        else if (change === 'remove') commit(removeSlur(doc, at));
+        else commit(placeSlur(doc, at, change));
+    };
+
     const switchMode = (next: EditorMode) => {
         setMapBar(null);
 
@@ -688,9 +701,10 @@ export default function ScoreShow(props: ComposeProps) {
                     heard={heard}
                     onHeard={changeHeard}
                     activePart={mode === 'lyrics' ? lyric.part : cursor.part}
-                    onShare={share}
+                    onShare={() => setPublishOpen(true)}
                     onPrint={() => setPrinting(true)}
-                    canShare={props.is_owner}
+                    canShare={props.is_owner && publishing !== null}
+                    published={publishing?.published ?? false}
                 />
 
                 <div className="flex min-h-0 grow basis-0">
@@ -779,7 +793,7 @@ export default function ScoreShow(props: ComposeProps) {
                             <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2">
                                 <div className="pointer-events-auto">
                                     {mode === 'notes' ? (
-                                        <NotePalette current={currentPitch} onAction={onNote} />
+                                        <NotePalette current={currentPitch} slurred={cursorSlur !== null} onAction={onNote} />
                                     ) : (
                                         <TextPalette verseLabel={verseLabel} onAction={onText} />
                                     )}
@@ -809,6 +823,8 @@ export default function ScoreShow(props: ComposeProps) {
                             }}
                             onPass={(pass) => commit(setBarPass(doc, cursor.bar, pass))}
                             onLine={onLine}
+                            slur={cursorSlur}
+                            onSlur={onSlur}
                         />
                     ) : (
                         <LyricsInspector
@@ -822,6 +838,13 @@ export default function ScoreShow(props: ComposeProps) {
                                 setLyric({ ...lyric, part, beat: noteStarts(next, part, lyric.bar)[0] ?? 0 });
                             }}
                             onVerse={(index) => setLyric({ ...lyric, verse: index })}
+                            onClearVerse={(index) => commit(clearVerse(doc, index))}
+                            onDeleteVerse={(index) => {
+                                commit(deleteVerse(doc, index));
+                                // Stay on the same verse; the ones after it moved up one.
+                                const verse = lyric.verse > index ? lyric.verse - 1 : Math.min(lyric.verse, Math.max(0, doc.verses.length - 2));
+                                setLyric({ ...lyric, verse });
+                            }}
                             onAddTranslation={() => {
                                 const next = addVerse(ensureVerse(doc), 'en', 'English');
                                 commit(next);
@@ -853,6 +876,10 @@ export default function ScoreShow(props: ComposeProps) {
                     doh={doh}
                     onClose={closePrint}
                 />
+            )}
+
+            {publishOpen && publishing && (
+                <PublishDialog scoreId={score.id} title={score.title} publishing={publishing} onChange={setPublishing} onClose={closePublish} />
             )}
 
             {deletingPart && (

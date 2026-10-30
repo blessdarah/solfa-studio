@@ -3,6 +3,7 @@
  * returns a new one. The compose screen applies them and autosaves.
  */
 import { beatsInBar, onThird, partOf, VOICE_NAMES } from '@/lib/music';
+import { slotKey, slurredOn } from '@/lib/slurs';
 import type {
     Bar,
     MapEvent,
@@ -655,8 +656,13 @@ export function wordsPart(document: ScoreDocument, preferred: Voice): Voice {
 
 /** Note starts in a bar of `voice`, in order — the slots words go on. */
 export function noteStarts(document: ScoreDocument, voice: Voice, barNo: number): number[] {
-    // A note held over the bar line carries the syllable before it, so it gets none of its own.
-    return (barOf(document, voice, barNo)?.notes ?? []).filter((n) => n.pitch !== 'rest' && !n.tie).map((n) => n.start);
+    // A note held over the bar line carries the syllable before it, so it gets none of its own;
+    // nor does a note inside a slur — it is sung on the syllable the slur starts with.
+    const slurred = slurredOn(partOf(document, voice));
+
+    return (barOf(document, voice, barNo)?.notes ?? [])
+        .filter((n) => n.pitch !== 'rest' && !n.tie && !slurred.has(slotKey(barNo, n.start)))
+        .map((n) => n.start);
 }
 
 /** The next note start after `beat`, crossing into later bars. */
@@ -730,6 +736,33 @@ export function addVerse(document: ScoreDocument, lang: string, label: string): 
     const id = `v${Date.now().toString(36)}`;
 
     return { ...document, verses: [...document.verses, { id, label, lang, syllables: [] }] };
+}
+
+/** Take every word out of one verse, keeping the verse itself. */
+export function clearVerse(document: ScoreDocument, verse: number): ScoreDocument {
+    if (!document.verses[verse]?.syllables.length) return document;
+
+    return { ...document, verses: document.verses.map((v, i) => (i === verse ? { ...v, syllables: [] } : v)) };
+}
+
+/**
+ * Take a verse out of the score. Verses still called "Verse 3", "Verse 4"…
+ * move up a number, so the numbering keeps no gap.
+ */
+export function deleteVerse(document: ScoreDocument, verse: number): ScoreDocument {
+    if (!document.verses[verse]) return document;
+
+    let n = 0;
+    const verses = document.verses
+        .filter((_, i) => i !== verse)
+        .map((v) => {
+            if (!/^Verse \d+$/.test(v.label)) return v;
+            n++;
+
+            return v.label === `Verse ${n}` ? v : { ...v, label: `Verse ${n}` };
+        });
+
+    return { ...document, verses };
 }
 
 // ------------------------------------------------------------ marks

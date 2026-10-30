@@ -5,10 +5,14 @@ import { LibraryRail } from '@/components/dashboard/library-rail';
 import { NewScoreModal } from '@/components/dashboard/new-score-modal';
 import { RehearsalModal } from '@/components/dashboard/rehearsal-modal';
 import { ScoreLedger } from '@/components/dashboard/score-ledger';
+import type { ScoreActions } from '@/components/dashboard/score-ledger';
+import { DeleteScoreDialog } from '@/components/scores/delete-score-dialog';
+import { EditDetailsDialog } from '@/components/scores/edit-details-dialog';
+import { PublishDialog } from '@/components/scores/publish-dialog';
 import { Toast } from '@/components/toast';
 import { TopBar } from '@/components/top-bar';
 import { dashboardUrl } from '@/lib/dashboard-url';
-import type { DashboardProps } from '@/types';
+import type { DashboardProps, Publishing, ScoreSummary } from '@/types';
 
 function greeting(): string {
     const hour = new Date().getHours();
@@ -29,6 +33,16 @@ export default function Dashboard(props: DashboardProps) {
     const [planning, setPlanning] = useState(false);
     const [toast, setToast] = useState<string | null>(flash.success ?? null);
     const searchRef = useRef<HTMLInputElement>(null);
+    const [details, setDetails] = useState<ScoreSummary | null>(null);
+    const [deleting, setDeleting] = useState<ScoreSummary | null>(null);
+    const [publishing, setPublishing] = useState<{ score: ScoreSummary; state: Publishing } | null>(null);
+
+    const actions: ScoreActions = {
+        onDetails: setDetails,
+        onDelete: setDeleting,
+        onPublish: (score) => setPublishing({ score, state: score.publishing }),
+        onToast: setToast,
+    };
 
     useEffect(() => setToast(flash.success ?? null), [flash.success]);
 
@@ -72,7 +86,7 @@ export default function Dashboard(props: DashboardProps) {
             ? [
                   `${counts.all} ${counts.all === 1 ? 'score' : 'scores'}`,
                   `${counts.review} need${counts.review === 1 ? 's' : ''} a second look`,
-                  `${counts.shared} shared with the choir`,
+                  `${counts.published} published for anyone to practise`,
               ].join(' · ')
             : `${props.filtered_total} ${props.filtered_total === 1 ? 'score' : 'scores'}`;
 
@@ -81,6 +95,8 @@ export default function Dashboard(props: DashboardProps) {
             ? 'No scores match your search.'
             : filters.view === 'archive'
               ? 'Drag a score onto Archive to put it away.'
+              : filters.view === 'deleted'
+                ? 'Nothing here. Deleted scores wait 30 days before they go for good.'
               : filters.view === 'collection'
                 ? 'Drag scores onto this collection to add them.'
                 : filters.view === 'shared'
@@ -132,6 +148,7 @@ export default function Dashboard(props: DashboardProps) {
                             shown={props.shown}
                             filteredTotal={props.filtered_total}
                             emptyText={emptyText}
+                            actions={actions}
                         />
                     </main>
 
@@ -155,6 +172,20 @@ export default function Dashboard(props: DashboardProps) {
                 scores={props.choices}
                 ensemble={props.workspace.name}
             />
+            {details && <EditDetailsDialog score={details} onClose={() => setDetails(null)} />}
+            {deleting && <DeleteScoreDialog score={deleting} onClose={() => setDeleting(null)} />}
+            {publishing && (
+                <PublishDialog
+                    scoreId={publishing.score.id}
+                    title={publishing.score.title}
+                    publishing={publishing.state}
+                    onChange={(state) => setPublishing({ ...publishing, state })}
+                    onClose={() => {
+                        setPublishing(null);
+                        router.reload({ only: ['scores', 'kinds', 'counts'] });
+                    }}
+                />
+            )}
             <Toast message={toast} onClose={() => setToast(null)} />
         </>
     );

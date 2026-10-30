@@ -23,7 +23,13 @@ final readonly class Note implements JsonSerializable
         public NoteSource $source = NoteSource::Typed,
         /** Carries on the note before it over a bar line — written "–", sung on, not struck again. */
         public bool $tie = false,
+        /** Slurred into the next note — sung on the same syllable, gliding: drawn "over" or "under" the notes. */
+        public ?string $slur = null,
     ) {
+        if ($slur !== null && $slur !== 'over' && $slur !== 'under') {
+            throw InvalidScoreDocument::at('slur', 'must be "over" or "under"');
+        }
+
         if ($octave < -2 || $octave > 2) {
             throw InvalidScoreDocument::at('octave', 'must be between -2 and 2');
         }
@@ -53,7 +59,24 @@ final readonly class Note implements JsonSerializable
             length: $length,
             source: Field::enum($data, 'source', $path, NoteSource::class, NoteSource::Typed),
             tie: Field::bool($data, 'tie', $path),
+            slur: self::slurFrom($data, $path),
         );
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function slurFrom(array $data, string $path): ?string
+    {
+        $slur = $data['slur'] ?? null;
+
+        if ($slur === null || $slur === false) {
+            return null;
+        }
+
+        if ($slur !== 'over' && $slur !== 'under') {
+            throw InvalidScoreDocument::at(Field::join($path, 'slur'), 'must be "over" or "under"');
+        }
+
+        return $slur;
     }
 
     public function end(): float
@@ -78,7 +101,7 @@ final readonly class Note implements JsonSerializable
     }
 
     /**
-     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true}
+     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true, slur?: 'over'|'under'}
      */
     public function toArray(): array
     {
@@ -90,12 +113,20 @@ final readonly class Note implements JsonSerializable
             'source' => $this->source->value,
         ];
 
-        // Only a tied note says so, keeping ordinary notes as they were.
-        return $this->tie ? $note + ['tie' => true] : $note;
+        // Only a tied or slurred note says so, keeping ordinary notes as they were.
+        if ($this->tie) {
+            $note['tie'] = true;
+        }
+
+        if ($this->slur !== null) {
+            $note['slur'] = $this->slur;
+        }
+
+        return $note;
     }
 
     /**
-     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true}
+     * @return array{pitch: string, octave: int, start: float, length: float, source: string, tie?: true, slur?: 'over'|'under'}
      */
     public function jsonSerialize(): array
     {
