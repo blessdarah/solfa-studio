@@ -1,5 +1,12 @@
 import type { Publishing } from './publishing';
-import type { DohKey, Note, ScoreOrigin, ScoreStatus, ShareAccess, Voice } from './score';
+import type {
+    DohKey,
+    Note,
+    ScoreOrigin,
+    ScoreStatus,
+    ShareAccess,
+    Voice,
+} from './score';
 
 export type VoiceState = 'complete' | 'started' | 'empty' | 'flagged';
 
@@ -50,7 +57,14 @@ export type ScoreSummary = {
     preview: { beats: number; notes: Note[] }[];
 };
 
-export type DashboardView = 'all' | 'review' | 'shared' | 'archive' | 'deleted' | 'collection' | 'rehearsal';
+export type DashboardView =
+    | 'all'
+    | 'review'
+    | 'shared'
+    | 'archive'
+    | 'deleted'
+    | 'collection'
+    | 'rehearsal';
 export type DashboardKind = 'all' | 'composed' | 'arrangements' | 'published';
 export type DashboardSort = 'edited' | 'title' | 'key';
 
@@ -107,14 +121,26 @@ export type NotificationItem = {
 
 export type DashboardProps = {
     workspace: Workspace;
-    nav: { all: number; review: number; shared: number; archive: number; deleted: number };
+    nav: {
+        all: number;
+        review: number;
+        shared: number;
+        archive: number;
+        deleted: number;
+    };
     collections: CollectionItem[];
     heading: string;
     scores: ScoreSummary[];
     shown: number;
     filtered_total: number;
     kinds: Record<DashboardKind, number>;
-    counts: { all: number; review: number; shared: number; ready: number; published: number };
+    counts: {
+        all: number;
+        review: number;
+        shared: number;
+        ready: number;
+        published: number;
+    };
     resume: ScoreSummary | null;
     /** Every score in the library, for picking a rehearsal plan. */
     choices: { id: string; title: string }[];

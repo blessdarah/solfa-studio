@@ -8,7 +8,9 @@ export type SaveState =
     | { kind: 'error'; message: string };
 
 function xsrf(): string {
-    const match = document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='));
+    const match = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('XSRF-TOKEN='));
 
     return match ? decodeURIComponent(match.slice('XSRF-TOKEN='.length)) : '';
 }
@@ -18,7 +20,12 @@ function xsrf(): string {
  * travels with every save, so a second tab can't silently overwrite this
  * one — the server answers 409 instead.
  */
-export function useAutosave(scoreId: string, initialVersion: number, savedAt: string | null, enabled: boolean) {
+export function useAutosave(
+    scoreId: string,
+    initialVersion: number,
+    savedAt: string | null,
+    enabled: boolean,
+) {
     const version = useRef(initialVersion);
     const pending = useRef<ScoreDocument | null>(null);
     const inFlight = useRef(false);
@@ -57,10 +64,18 @@ export function useAutosave(scoreId: string, initialVersion: number, savedAt: st
                 return;
             }
 
-            const body = (await response.json().catch(() => ({}))) as { version?: number; message?: string };
+            const body = (await response.json().catch(() => ({}))) as {
+                version?: number;
+                message?: string;
+            };
 
             if (!response.ok) {
-                setState({ kind: 'error', message: body.message ?? 'Could not save. Check your connection.' });
+                setState({
+                    kind: 'error',
+                    message:
+                        body.message ??
+                        'Could not save. Check your connection.',
+                });
 
                 return;
             }
@@ -69,7 +84,10 @@ export function useAutosave(scoreId: string, initialVersion: number, savedAt: st
             setState({ kind: 'saved', at: Date.now() });
         } catch {
             pending.current = pending.current ?? document;
-            setState({ kind: 'error', message: 'Offline — your changes will save when you reconnect.' });
+            setState({
+                kind: 'error',
+                message: 'Offline — your changes will save when you reconnect.',
+            });
         } finally {
             inFlight.current = false;
 

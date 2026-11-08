@@ -18,9 +18,18 @@ export type SongCard = {
 };
 
 /** Where a search matched: the title, the composer, or words in a verse. */
-export type SearchMatch = { in: string; before: string; match: string; after: string };
+export type SearchMatch = {
+    in: string;
+    before: string;
+    match: string;
+    after: string;
+};
 
-export type StyleCount = { name: string; count: number; sample?: { beats: number; notes: Note[] } | null };
+export type StyleCount = {
+    name: string;
+    count: number;
+    sample?: { beats: number; notes: Note[] } | null;
+};
 
 export type PublicHomeProps = {
     songs: SongCard[];
@@ -32,13 +41,25 @@ export type PublicHomeProps = {
 export type PublicSearchProps = {
     results: (SongCard & { match: SearchMatch | null })[];
     total: number;
+    /** Which page of results this is, with links to the pages either side (null at the ends). */
+    pages: {
+        current: number;
+        last: number;
+        prev: string | null;
+        next: string | null;
+    };
     styles: StyleCount[];
     filters: { q: string; voices: 'any' | 'SATB' | 'SA' | 'TB'; style: string };
     signed_in: boolean;
 };
 
 export type PublicScoreProps = {
-    song: SongCard & { url: string; published_at: string | null; is_owner: boolean; score_id: string | null };
+    song: SongCard & {
+        url: string;
+        published_at: string | null;
+        is_owner: boolean;
+        score_id: string | null;
+    };
     document: ScoreDocument;
     doh: DohKey;
     can: { play: boolean; print: boolean };

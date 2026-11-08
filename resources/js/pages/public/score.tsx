@@ -7,7 +7,16 @@ import { LoopIcon, PrintIcon, RepeatIcon } from '@/components/icons';
 import { PublicTopBar } from '@/components/public/public-chrome';
 import { wordsPart } from '@/lib/editor';
 import { requestJson } from '@/lib/http';
-import { beatsInBar, formatBar, keyLabel, partOf, performanceOrder, timeLabel, tempoAt, VOICE_NAMES } from '@/lib/music';
+import {
+    beatsInBar,
+    formatBar,
+    keyLabel,
+    partOf,
+    performanceOrder,
+    timeLabel,
+    tempoAt,
+    VOICE_NAMES,
+} from '@/lib/music';
 import type { PlayStep } from '@/lib/music';
 import { play } from '@/lib/player';
 import type { Playback } from '@/lib/player';
@@ -26,7 +35,11 @@ const MIXES: { mix: Mix; label: string }[] = [
 ];
 
 /** How loud each part plays: your part loud and the others soft, yours alone, or everyone but you. */
-function levelsFor(voices: Voice[], mine: Voice | null, mix: Mix): Partial<Record<Voice, number>> {
+function levelsFor(
+    voices: Voice[],
+    mine: Voice | null,
+    mix: Mix,
+): Partial<Record<Voice, number>> {
     return Object.fromEntries(
         voices.map((voice) => {
             if (mine === null) return [voice, 1];
@@ -77,7 +90,13 @@ export type PracticeSong = {
  * play it with the others soft (or alone, or without you), slow it down,
  * repeat a passage, and print it. No account needed.
  */
-export default function PublicScore({ song, document, doh, can, signed_in }: PublicScoreProps) {
+export default function PublicScore({
+    song,
+    document,
+    doh,
+    can,
+    signed_in,
+}: PublicScoreProps) {
     const [copied, setCopied] = useState(false);
     const counted = useRef(false);
 
@@ -92,22 +111,37 @@ export default function PublicScore({ song, document, doh, can, signed_in }: Pub
             <Head title={song.title} />
 
             <PracticeView
-                song={{ key: song.slug, title: song.title, composer: song.composer, arranger: song.arranger, style: song.style, voices: song.voices }}
+                song={{
+                    key: song.slug,
+                    title: song.title,
+                    composer: song.composer,
+                    arranger: song.arranger,
+                    style: song.style,
+                    voices: song.voices,
+                }}
                 document={document}
                 doh={doh}
                 can={can}
                 onStart={() => {
                     if (counted.current) return;
                     counted.current = true;
-                    void requestJson('POST', `/p/${song.slug}/played`).catch(() => undefined);
+                    void requestJson('POST', `/p/${song.slug}/played`).catch(
+                        () => undefined,
+                    );
                 }}
                 topBar={({ print }) => (
                     <PublicTopBar signedIn={signed_in}>
                         <span className="hidden text-[13.5px] leading-4.5 text-pencil lg:block">
-                            Shared by <span className="font-semibold text-ink">{song.owner}</span>
+                            Shared by{' '}
+                            <span className="font-semibold text-ink">
+                                {song.owner}
+                            </span>
                         </span>
                         {song.is_owner && song.score_id && (
-                            <Link href={`/scores/${song.score_id}`} className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex">
+                            <Link
+                                href={`/scores/${song.score_id}`}
+                                className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex"
+                            >
                                 Edit
                             </Link>
                         )}
@@ -158,7 +192,13 @@ export function PracticeView({
     /** A line under the top bar, e.g. "Open on a computer or tablet to edit". */
     notice?: ReactNode;
 }) {
-    const voices = useMemo(() => document.parts.map((p) => p.id).filter((v) => song.voices.includes(v)), [document, song.voices]);
+    const voices = useMemo(
+        () =>
+            document.parts
+                .map((p) => p.id)
+                .filter((v) => song.voices.includes(v)),
+        [document, song.voices],
+    );
     const [mine, setMine] = useState<Voice | null>(null);
     const [mix, setMix] = useState<Mix>('everyone');
     const [speed, setSpeed] = useState<number>(1);
@@ -210,10 +250,16 @@ export function PracticeView({
         if (timer.current !== null) window.clearTimeout(timer.current);
 
         const steps: PlayStep[] = range
-            ? Array.from({ length: range.to - range.from + 1 }, (_, i) => ({ bar: range.from + i, pass: 1 }))
+            ? Array.from({ length: range.to - range.from + 1 }, (_, i) => ({
+                  bar: range.from + i,
+                  pass: 1,
+              }))
             : performanceOrder(document, 1);
         const begin = audio().currentTime;
-        const p = play(document, doh, steps, voices, { levels: levelsFor(voices, live.current.mine, live.current.mix), speed: atSpeed });
+        const p = play(document, doh, steps, voices, {
+            levels: levelsFor(voices, live.current.mine, live.current.mix),
+            speed: atSpeed,
+        });
         setPlayback(p);
         setProgress({ at: 0, total: p.endsAt - begin });
 
@@ -235,7 +281,14 @@ export function PracticeView({
         if (!playback) return;
 
         const begin = playback.timeline[0]?.at ?? audio().currentTime;
-        const id = window.setInterval(() => setProgress({ at: audio().currentTime - begin, total: playback.endsAt - begin }), 250);
+        const id = window.setInterval(
+            () =>
+                setProgress({
+                    at: audio().currentTime - begin,
+                    total: playback.endsAt - begin,
+                }),
+            250,
+        );
 
         return () => window.clearInterval(id);
     }, [playback]);
@@ -256,7 +309,9 @@ export function PracticeView({
     const bpm = tempoAt(document.map, 1);
     const playing = playback !== null;
     const barNow = step?.bar ?? null;
-    const lyricsPart = mine ? wordsPart(document, mine) : wordsPart(document, voices[0] ?? 'S');
+    const lyricsPart = mine
+        ? wordsPart(document, mine)
+        : wordsPart(document, voices[0] ?? 'S');
     const words = (bar: number) =>
         (document.verses[0]?.syllables ?? [])
             .filter((s) => s.part === lyricsPart && s.bar === bar)
@@ -267,7 +322,10 @@ export function PracticeView({
 
     // "Bar 10 of 16 · Chorus" and what the singer hears, for the player bar (Paper W14, W15).
     const shownBar = barNow ?? passage?.from ?? 1;
-    const sectionOf = (bar: number) => document.sections.find((s) => s.ending === null && bar >= s.from && bar <= s.to)?.name ?? null;
+    const sectionOf = (bar: number) =>
+        document.sections.find(
+            (s) => s.ending === null && bar >= s.from && bar <= s.to,
+        )?.name ?? null;
     const hearing = !mine
         ? 'All parts'
         : mix === 'mine'
@@ -276,7 +334,13 @@ export function PracticeView({
             ? `Everyone but the ${VOICE_NAMES[mine].toLowerCase()}`
             : `${VOICE_NAMES[mine]} louder · others soft`;
 
-    const by = [song.composer, song.arranger ? `arr. ${song.arranger}` : null, song.style].filter(Boolean).join(' · ');
+    const by = [
+        song.composer,
+        song.arranger ? `arr. ${song.arranger}` : null,
+        song.style,
+    ]
+        .filter(Boolean)
+        .join(' · ');
 
     return (
         <>
@@ -288,32 +352,82 @@ export function PracticeView({
                     {/* Practise panel (Paper W14) */}
                     <aside className="hidden w-75 shrink-0 flex-col gap-6 overflow-y-auto border-r border-rule bg-paper px-5 py-6 lg:flex">
                         <div className="flex flex-col gap-1">
-                            <h1 className="font-display text-[24px] leading-7 font-extrabold tracking-[-0.02em] text-ink">{song.title}</h1>
-                            <div className="text-[13px] leading-4.5 text-pencil">{by}</div>
+                            <h1 className="font-display text-[24px] leading-7 font-extrabold tracking-[-0.02em] text-ink">
+                                {song.title}
+                            </h1>
+                            <div className="text-[13px] leading-4.5 text-pencil">
+                                {by}
+                            </div>
                             <div className="font-solfa text-[12px] leading-4 text-ink">
-                                Doh is {keyLabel(doh)} · {timeLabel(beatsInBar(document.map, 1))} · ♩ {bpm}
+                                Doh is {keyLabel(doh)} ·{' '}
+                                {timeLabel(beatsInBar(document.map, 1))} · ♩{' '}
+                                {bpm}
                             </div>
                         </div>
 
-                        <PartPicker voices={voices} mine={mine} onChoose={choose} />
+                        <PartPicker
+                            voices={voices}
+                            mine={mine}
+                            onChoose={choose}
+                        />
 
                         {can.play && (
                             <>
                                 <div className="flex flex-col gap-2 border-t border-rule pt-5">
-                                    <div className="pb-0.5 text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">WHAT YOU HEAR</div>
+                                    <div className="pb-0.5 text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                        WHAT YOU HEAR
+                                    </div>
                                     {voices.map((voice) => {
-                                        const level = levelsFor(voices, mine, mix)[voice] ?? 1;
+                                        const level =
+                                            levelsFor(voices, mine, mix)[
+                                                voice
+                                            ] ?? 1;
 
                                         return (
-                                            <div key={voice} className="flex h-7 items-center gap-2.5">
-                                                <span className={cn('w-16 text-[13px] leading-4', voice === mine ? 'font-semibold text-ink' : level === 0 ? 'text-pencil' : 'text-ink')}>
+                                            <div
+                                                key={voice}
+                                                className="flex h-7 items-center gap-2.5"
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        'w-16 text-[13px] leading-4',
+                                                        voice === mine
+                                                            ? 'font-semibold text-ink'
+                                                            : level === 0
+                                                              ? 'text-pencil'
+                                                              : 'text-ink',
+                                                    )}
+                                                >
                                                     {VOICE_NAMES[voice]}
                                                 </span>
                                                 <span className="flex h-1 grow rounded-full bg-rule">
-                                                    <span className={cn('h-1 rounded-full', voice === mine ? 'bg-ink' : 'bg-[#9A9A94]')} style={{ width: `${level * 90}%` }} />
+                                                    <span
+                                                        className={cn(
+                                                            'h-1 rounded-full',
+                                                            voice === mine
+                                                                ? 'bg-ink'
+                                                                : 'bg-[#9A9A94]',
+                                                        )}
+                                                        style={{
+                                                            width: `${level * 90}%`,
+                                                        }}
+                                                    />
                                                 </span>
-                                                <span className={cn('w-10 text-right text-[11.5px] leading-3.5', voice === mine ? 'font-semibold text-ink' : 'text-pencil')}>
-                                                    {voice === mine ? 'Mine' : level === 0 ? 'Off' : level < 1 ? 'Soft' : 'Full'}
+                                                <span
+                                                    className={cn(
+                                                        'w-10 text-right text-[11.5px] leading-3.5',
+                                                        voice === mine
+                                                            ? 'font-semibold text-ink'
+                                                            : 'text-pencil',
+                                                    )}
+                                                >
+                                                    {voice === mine
+                                                        ? 'Mine'
+                                                        : level === 0
+                                                          ? 'Off'
+                                                          : level < 1
+                                                            ? 'Soft'
+                                                            : 'Full'}
                                                 </span>
                                             </div>
                                         );
@@ -324,33 +438,55 @@ export function PracticeView({
                                                 key={item.mix}
                                                 type="button"
                                                 disabled={mine === null}
-                                                onClick={() => changeMix(item.mix)}
+                                                onClick={() =>
+                                                    changeMix(item.mix)
+                                                }
                                                 className={cn(
                                                     'flex h-7.5 items-center rounded-full px-2.5 text-[12px] leading-4 whitespace-nowrap disabled:opacity-40',
-                                                    mix === item.mix ? 'bg-ink font-semibold text-paper' : 'border border-rule font-medium text-ink hover:border-ink',
+                                                    mix === item.mix
+                                                        ? 'bg-ink font-semibold text-paper'
+                                                        : 'border border-rule font-medium text-ink hover:border-ink',
                                                 )}
                                             >
                                                 {item.label}
                                             </button>
                                         ))}
                                     </div>
-                                    {mine === null && <p className="text-[12px] leading-4 text-pencil">Pick your part above to make it stand out.</p>}
+                                    {mine === null && (
+                                        <p className="text-[12px] leading-4 text-pencil">
+                                            Pick your part above to make it
+                                            stand out.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
                                     <div className="flex justify-between">
-                                        <span className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">SPEED</span>
+                                        <span className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                            SPEED
+                                        </span>
                                         <span className="font-solfa text-[11.5px] leading-3.5 text-pencil">
                                             ♩ {Math.round(bpm * speed)}
-                                            {speed !== 1 ? ` · written ${bpm}` : ''}
+                                            {speed !== 1
+                                                ? ` · written ${bpm}`
+                                                : ''}
                                         </span>
                                     </div>
-                                    <SpeedSwitch speed={speed} onChange={changeSpeed} />
+                                    <SpeedSwitch
+                                        speed={speed}
+                                        onChange={changeSpeed}
+                                    />
                                 </div>
 
                                 <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
-                                    <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">PRACTISE A PASSAGE</div>
-                                    <PassagePicker bars={document.bars} passage={passage} onChange={changePassage} />
+                                    <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                        PRACTISE A PASSAGE
+                                    </div>
+                                    <PassagePicker
+                                        bars={document.bars}
+                                        passage={passage}
+                                        onChange={changePassage}
+                                    />
                                 </div>
                             </>
                         )}
@@ -360,9 +496,14 @@ export function PracticeView({
                         {/* Phone header (Paper W15) */}
                         <div className="flex flex-col gap-3 border-b border-rule bg-paper px-4 pt-4 pb-3.5 lg:hidden">
                             <div className="flex flex-col gap-0.5">
-                                <h1 className="font-display text-[26px] leading-7.5 font-extrabold tracking-[-0.02em] text-ink">{song.title}</h1>
+                                <h1 className="font-display text-[26px] leading-7.5 font-extrabold tracking-[-0.02em] text-ink">
+                                    {song.title}
+                                </h1>
                                 <div className="text-[13px] leading-4.25 text-pencil">
-                                    {by} · <span className="font-solfa text-ink">Doh is {keyLabel(doh)}</span>
+                                    {by} ·{' '}
+                                    <span className="font-solfa text-ink">
+                                        Doh is {keyLabel(doh)}
+                                    </span>
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -375,7 +516,9 @@ export function PracticeView({
                                             aria-pressed={mine === voice}
                                             className={cn(
                                                 'flex h-7 w-8.5 items-center justify-center rounded-full font-display text-[12.5px] leading-3.5 font-extrabold',
-                                                mine === voice ? 'bg-marker text-ink' : 'text-pencil',
+                                                mine === voice
+                                                    ? 'bg-marker text-ink'
+                                                    : 'text-pencil',
                                             )}
                                         >
                                             {voice}
@@ -390,10 +533,16 @@ export function PracticeView({
                                             onClick={() => setView(v)}
                                             className={cn(
                                                 'flex h-7 grow items-center justify-center rounded-full px-3 text-[12px] leading-4',
-                                                view === v ? 'bg-paper font-semibold text-ink' : 'text-pencil',
+                                                view === v
+                                                    ? 'bg-paper font-semibold text-ink'
+                                                    : 'text-pencil',
                                             )}
                                         >
-                                            {v === 'mine' ? (mine ? 'My line' : 'Melody') : 'All parts'}
+                                            {v === 'mine'
+                                                ? mine
+                                                    ? 'My line'
+                                                    : 'Melody'
+                                                : 'All parts'}
                                         </button>
                                     ))}
                                 </div>
@@ -402,19 +551,43 @@ export function PracticeView({
 
                         <div className="flex min-h-0 grow flex-col overflow-auto pb-32">
                             {/* My line, big, two bars a row (phones) */}
-                            <div className={cn('flex-col gap-1.5 bg-paper px-4 pt-3.5 lg:hidden', view === 'mine' ? 'flex' : 'hidden')}>
+                            <div
+                                className={cn(
+                                    'flex-col gap-1.5 bg-paper px-4 pt-3.5 lg:hidden',
+                                    view === 'mine' ? 'flex' : 'hidden',
+                                )}
+                            >
                                 <MyLine
                                     document={document}
                                     voice={mine ?? voices[0] ?? 'S'}
                                     words={words}
                                     playing={barNow}
                                     passage={passage}
-                                    onBar={(bar) => changePassage(passage && passage.from === bar && passage.to === bar ? null : { from: bar, to: Math.min(document.bars, bar + 3) })}
+                                    onBar={(bar) =>
+                                        changePassage(
+                                            passage &&
+                                                passage.from === bar &&
+                                                passage.to === bar
+                                                ? null
+                                                : {
+                                                      from: bar,
+                                                      to: Math.min(
+                                                          document.bars,
+                                                          bar + 3,
+                                                      ),
+                                                  },
+                                        )
+                                    }
                                 />
                             </div>
 
                             {/* The full score */}
-                            <div className={cn('grow flex-col items-center px-4 pt-6 sm:px-8 lg:flex', view === 'all' ? 'flex' : 'hidden')}>
+                            <div
+                                className={cn(
+                                    'grow flex-col items-center px-4 pt-6 sm:px-8 lg:flex',
+                                    view === 'all' ? 'flex' : 'hidden',
+                                )}
+                            >
                                 <div className="max-w-full overflow-x-auto">
                                     <Sheet
                                         document={document}
@@ -424,7 +597,12 @@ export function PracticeView({
                                         doh={doh}
                                         mode="notes"
                                         cursor={{ part: 'S', bar: 0, beat: 0 }}
-                                        lyricCursor={{ verse: -1, part: 'S', bar: 0, beat: 0 }}
+                                        lyricCursor={{
+                                            verse: -1,
+                                            part: 'S',
+                                            bar: 0,
+                                            beat: 0,
+                                        }}
                                         canEdit={false}
                                         onCell={() => undefined}
                                         onWords={() => undefined}
@@ -456,7 +634,17 @@ export function PracticeView({
                             levels={levelsFor(voices, mine, mix)}
                             onChoose={choose}
                             speed={speed}
-                            onSpeed={() => changeSpeed(SPEEDS[(SPEEDS.indexOf(speed as (typeof SPEEDS)[number]) + 1) % SPEEDS.length])}
+                            onSpeed={() =>
+                                changeSpeed(
+                                    SPEEDS[
+                                        (SPEEDS.indexOf(
+                                            speed as (typeof SPEEDS)[number],
+                                        ) +
+                                            1) %
+                                            SPEEDS.length
+                                    ],
+                                )
+                            }
                             passage={passage}
                             onClearPassage={() => changePassage(null)}
                         />
@@ -465,7 +653,14 @@ export function PracticeView({
             </div>
 
             {printing && (
-                <PrintView document={document} title={song.title} composer={song.composer} arranger={song.arranger} doh={doh} onClose={() => setPrinting(false)} />
+                <PrintView
+                    document={document}
+                    title={song.title}
+                    composer={song.composer}
+                    arranger={song.arranger}
+                    doh={doh}
+                    onClose={() => setPrinting(false)}
+                />
             )}
         </>
     );
@@ -515,7 +710,10 @@ function PlayerBar({
         <div className="pointer-events-auto flex w-full max-w-196 flex-col gap-3 rounded-t-[20px] bg-ink px-4 pt-3.5 pb-7.5 shadow-[0_-10px_30px_#00000030] sm:h-18 sm:flex-row sm:items-center sm:gap-4 sm:rounded-[18px] sm:py-0 sm:pr-3.5 sm:pl-3 sm:shadow-[0_16px_40px_#00000040]">
             {/* On a phone the time line runs along the top. */}
             <div className="flex h-1 shrink-0 rounded-full bg-paper/15 sm:hidden">
-                <div className="h-1 rounded-full bg-marker" style={{ width: done }} />
+                <div
+                    className="h-1 rounded-full bg-marker"
+                    style={{ width: done }}
+                />
             </div>
 
             <div className="flex min-w-0 grow items-center gap-3 sm:gap-4">
@@ -526,12 +724,36 @@ function PlayerBar({
                     className="flex size-13 shrink-0 items-center justify-center rounded-full bg-marker outline-none hover:bg-[#EADF12] focus-visible:ring-2 focus-visible:ring-paper/60 sm:size-12"
                 >
                     {playing ? (
-                        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
-                            <rect x="3.5" y="3" width="3" height="10" rx="1" fill="#111111" />
-                            <rect x="9.5" y="3" width="3" height="10" rx="1" fill="#111111" />
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            aria-hidden="true"
+                        >
+                            <rect
+                                x="3.5"
+                                y="3"
+                                width="3"
+                                height="10"
+                                rx="1"
+                                fill="#111111"
+                            />
+                            <rect
+                                x="9.5"
+                                y="3"
+                                width="3"
+                                height="10"
+                                rx="1"
+                                fill="#111111"
+                            />
                         </svg>
                     ) : (
-                        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            aria-hidden="true"
+                        >
                             <path d="M5 3 13 8l-8 5z" fill="#111111" />
                         </svg>
                     )}
@@ -543,7 +765,9 @@ function PlayerBar({
                         Bar {bar}
                         {section ? ` · ${section}` : ''}
                     </span>
-                    <span className="truncate text-[12px] leading-4 text-paper/60">{hearing}</span>
+                    <span className="truncate text-[12px] leading-4 text-paper/60">
+                        {hearing}
+                    </span>
                 </div>
 
                 {/* Computer: "Bar 10 of 16 · Chorus", the time, and the time line. */}
@@ -562,7 +786,10 @@ function PlayerBar({
                         </span>
                     </div>
                     <div className="flex h-1 rounded-full bg-paper/15">
-                        <div className="h-1 rounded-full bg-marker" style={{ width: done }} />
+                        <div
+                            className="h-1 rounded-full bg-marker"
+                            style={{ width: done }}
+                        />
                     </div>
                 </div>
 
@@ -579,7 +806,11 @@ function PlayerBar({
                                 type="button"
                                 onClick={() => onChoose(voice)}
                                 aria-pressed={mine === voice}
-                                title={mine === voice ? `You sing ${VOICE_NAMES[voice].toLowerCase()}` : `I sing ${VOICE_NAMES[voice].toLowerCase()}`}
+                                title={
+                                    mine === voice
+                                        ? `You sing ${VOICE_NAMES[voice].toLowerCase()}`
+                                        : `I sing ${VOICE_NAMES[voice].toLowerCase()}`
+                                }
                                 className={cn(
                                     'flex h-7 w-7.5 items-center justify-center rounded-[7px] font-display text-[12px] leading-3.5 font-extrabold outline-none focus-visible:ring-2 focus-visible:ring-paper/50',
                                     mine === voice
@@ -620,10 +851,20 @@ function PlayerBar({
     );
 }
 
-function PartPicker({ voices, mine, onChoose }: { voices: Voice[]; mine: Voice | null; onChoose: (voice: Voice) => void }) {
+function PartPicker({
+    voices,
+    mine,
+    onChoose,
+}: {
+    voices: Voice[];
+    mine: Voice | null;
+    onChoose: (voice: Voice) => void;
+}) {
     return (
         <div className="flex flex-col gap-2.5 border-t border-rule pt-5">
-            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">I SING</div>
+            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                I SING
+            </div>
             <div className="flex gap-1 rounded-md bg-copy p-1">
                 {voices.map((voice) => (
                     <button
@@ -633,20 +874,40 @@ function PartPicker({ voices, mine, onChoose }: { voices: Voice[]; mine: Voice |
                         aria-pressed={mine === voice}
                         className={cn(
                             'flex h-11.5 grow basis-0 flex-col items-center justify-center rounded-[9px] outline-none focus-visible:ring-2 focus-visible:ring-ink/25',
-                            mine === voice ? 'bg-marker shadow-[0_0_0_1.5px_#111111]' : 'hover:bg-paper/60',
+                            mine === voice
+                                ? 'bg-marker shadow-[0_0_0_1.5px_#111111]'
+                                : 'hover:bg-paper/60',
                         )}
                     >
-                        <span className="font-display text-[15px] leading-4.5 font-extrabold text-ink">{voice}</span>
-                        <span className={cn('text-[10.5px] leading-3.25', mine === voice ? 'text-ink' : 'text-pencil')}>{VOICE_NAMES[voice]}</span>
+                        <span className="font-display text-[15px] leading-4.5 font-extrabold text-ink">
+                            {voice}
+                        </span>
+                        <span
+                            className={cn(
+                                'text-[10.5px] leading-3.25',
+                                mine === voice ? 'text-ink' : 'text-pencil',
+                            )}
+                        >
+                            {VOICE_NAMES[voice]}
+                        </span>
                     </button>
                 ))}
             </div>
-            <p className="text-[12px] leading-4.25 text-pencil">Your line stands out on the page and plays louder than the others.</p>
+            <p className="text-[12px] leading-4.25 text-pencil">
+                Your line stands out on the page and plays louder than the
+                others.
+            </p>
         </div>
     );
 }
 
-function SpeedSwitch({ speed, onChange }: { speed: number; onChange: (speed: number) => void }) {
+function SpeedSwitch({
+    speed,
+    onChange,
+}: {
+    speed: number;
+    onChange: (speed: number) => void;
+}) {
     return (
         <div className="flex gap-0.5 rounded-full bg-copy p-0.75">
             {SPEEDS.map((s) => (
@@ -655,7 +916,12 @@ function SpeedSwitch({ speed, onChange }: { speed: number; onChange: (speed: num
                     type="button"
                     onClick={() => onChange(s)}
                     aria-pressed={speed === s}
-                    className={cn('flex h-7 grow basis-0 items-center justify-center rounded-full text-[12.5px] leading-4', speed === s ? 'bg-paper font-semibold text-ink' : 'text-pencil')}
+                    className={cn(
+                        'flex h-7 grow basis-0 items-center justify-center rounded-full text-[12.5px] leading-4',
+                        speed === s
+                            ? 'bg-paper font-semibold text-ink'
+                            : 'text-pencil',
+                    )}
                 >
                     {Math.round(s * 100)}%
                 </button>
@@ -664,14 +930,27 @@ function SpeedSwitch({ speed, onChange }: { speed: number; onChange: (speed: num
     );
 }
 
-function PassagePicker({ bars, passage, onChange }: { bars: number; passage: Passage | null; onChange: (passage: Passage | null) => void }) {
+function PassagePicker({
+    bars,
+    passage,
+    onChange,
+}: {
+    bars: number;
+    passage: Passage | null;
+    onChange: (passage: Passage | null) => void;
+}) {
     const options = Array.from({ length: bars }, (_, i) => i + 1);
     const from = passage?.from ?? 1;
     const to = passage?.to ?? Math.min(bars, 4);
 
     return (
         <div className="flex flex-col gap-2">
-            <div className={cn('flex items-center gap-2 rounded-[10px] px-3 py-2', passage ? 'bg-wash' : 'bg-copy')}>
+            <div
+                className={cn(
+                    'flex items-center gap-2 rounded-[10px] px-3 py-2',
+                    passage ? 'bg-wash' : 'bg-copy',
+                )}
+            >
                 <LoopIcon className="text-ink" />
                 <span className="text-[13px] leading-4 text-ink">Bars</span>
                 <select
@@ -706,12 +985,21 @@ function PassagePicker({ bars, passage, onChange }: { bars: number; passage: Pas
                     ))}
                 </select>
                 {passage && (
-                    <button type="button" onClick={() => onChange(null)} aria-label="Stop repeating" className="ml-auto text-[14px] leading-4 text-[#5C4A00] hover:text-ink">
+                    <button
+                        type="button"
+                        onClick={() => onChange(null)}
+                        aria-label="Stop repeating"
+                        className="ml-auto text-[14px] leading-4 text-[#5C4A00] hover:text-ink"
+                    >
                         ×
                     </button>
                 )}
             </div>
-            <p className="text-[12px] leading-4.25 text-pencil">{passage ? 'Plays these bars over and over.' : 'Pick bars to repeat them over and over.'}</p>
+            <p className="text-[12px] leading-4.25 text-pencil">
+                {passage
+                    ? 'Plays these bars over and over.'
+                    : 'Pick bars to repeat them over and over.'}
+            </p>
         </div>
     );
 }
@@ -740,12 +1028,17 @@ function MyLine({
 
     return (
         <>
-            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">{VOICE_NAMES[voice].toUpperCase()}</div>
+            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                {VOICE_NAMES[voice].toUpperCase()}
+            </div>
             {rows.map((row) => (
                 <div key={row[0]} className="flex border-y-[1.5px] border-ink">
                     {row.map((bar) => {
                         const notes = part?.bars[bar - 1]?.notes ?? [];
-                        const inPassage = passage !== null && bar >= passage.from && bar <= passage.to;
+                        const inPassage =
+                            passage !== null &&
+                            bar >= passage.from &&
+                            bar <= passage.to;
 
                         return (
                             <button
@@ -754,21 +1047,34 @@ function MyLine({
                                 onClick={() => onBar(bar)}
                                 className={cn(
                                     'flex min-w-0 grow basis-0 flex-col gap-1 border-l border-ink px-2 pt-1.5 pb-2 text-left last:border-r',
-                                    playing === bar ? 'bg-marker/45 outline-2 outline-ink' : inPassage && 'bg-wash',
+                                    playing === bar
+                                        ? 'bg-marker/45 outline-2 outline-ink'
+                                        : inPassage && 'bg-wash',
                                 )}
                             >
-                                <span className="font-solfa text-[10px] leading-3 text-pencil">{bar}</span>
-                                <span className="truncate font-solfa text-[17px] leading-5.5 font-bold whitespace-pre text-ink">
-                                    {notes.length > 0 ? formatBar(notes, beatsInBar(document.map, bar)) : '–'}
+                                <span className="font-solfa text-[10px] leading-3 text-pencil">
+                                    {bar}
                                 </span>
-                                <span className="truncate text-[13px] leading-4 text-ink italic">{words(bar)}</span>
+                                <span className="truncate font-solfa text-[17px] leading-5.5 font-bold whitespace-pre text-ink">
+                                    {notes.length > 0
+                                        ? formatBar(
+                                              notes,
+                                              beatsInBar(document.map, bar),
+                                          )
+                                        : '–'}
+                                </span>
+                                <span className="truncate text-[13px] leading-4 text-ink italic">
+                                    {words(bar)}
+                                </span>
                             </button>
                         );
                     })}
                     {row.length === 1 && <span className="grow basis-0" />}
                 </div>
             ))}
-            <p className="pt-2 text-[12px] leading-4 text-pencil">Tap a bar to repeat it and the three after it.</p>
+            <p className="pt-2 text-[12px] leading-4 text-pencil">
+                Tap a bar to repeat it and the three after it.
+            </p>
         </>
     );
 }

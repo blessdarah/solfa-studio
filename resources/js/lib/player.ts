@@ -18,7 +18,9 @@ const OCTAVE_SHIFT: Record<Voice, number> = { S: 0, A: 0, T: -12, B: 0 };
 function beatSeconds(document: ScoreDocument, bar: number): number[] {
     const beats = beatsInBar(document.map, bar);
     const bpm = tempoAt(document.map, bar);
-    const next = document.map.find((e) => e.bar === bar + 1 && e.bpm !== null && e.ramp !== 'at_once');
+    const next = document.map.find(
+        (e) => e.bar === bar + 1 && e.bpm !== null && e.ramp !== 'at_once',
+    );
 
     return Array.from({ length: beats }, (_, i) => {
         const target = next?.bpm ?? bpm;
@@ -30,7 +32,13 @@ function beatSeconds(document: ScoreDocument, bar: number): number[] {
 }
 
 /** When one bar sounds, in audio-clock seconds. */
-export type BarTime = { bar: number; pass: Pass; at: number; beats: number[]; end: number };
+export type BarTime = {
+    bar: number;
+    pass: Pass;
+    at: number;
+    beats: number[];
+    end: number;
+};
 
 export type Playback = {
     stop: () => void;
@@ -58,7 +66,13 @@ const NOTE_VOLUME = 0.16;
  * `heard`. Each part runs through its own gain, so parts can be muted or
  * brought back mid-play.
  */
-export function play(document: ScoreDocument, doh: string, steps: PlayStep[], heard: Voice[], options: PlayOptions = {}): Playback {
+export function play(
+    document: ScoreDocument,
+    doh: string,
+    steps: PlayStep[],
+    heard: Voice[],
+    options: PlayOptions = {},
+): Playback {
     const speed = Math.max(0.25, Math.min(2, options.speed ?? 1));
     const ctx = audio();
     const master = ctx.createGain();
@@ -69,7 +83,8 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
 
     for (const part of document.parts) {
         const gain = ctx.createGain();
-        gain.gain.value = options.levels?.[part.id] ?? (heard.includes(part.id) ? 1 : 0);
+        gain.gain.value =
+            options.levels?.[part.id] ?? (heard.includes(part.id) ? 1 : 0);
         gain.connect(master);
         gains.set(part.id, gain);
     }
@@ -91,14 +106,25 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
     let time = ctx.currentTime + 0.08;
     for (const { bar, pass } of steps) {
         // A hold only carries on from the bar just before; after a jump (D.S.) it starts afresh.
-        if (timeline.length > 0 && timeline[timeline.length - 1].bar !== bar - 1) lastTone.clear();
-        const lengths = beatSeconds(document, bar).map((seconds) => seconds / speed);
+        if (
+            timeline.length > 0 &&
+            timeline[timeline.length - 1].bar !== bar - 1
+        )
+            lastTone.clear();
+        const lengths = beatSeconds(document, bar).map(
+            (seconds) => seconds / speed,
+        );
         const startOf = (beat: number) => {
             let seconds = 0;
 
-            for (let b = 0; b < Math.floor(beat); b++) seconds += lengths[b] ?? lengths[lengths.length - 1];
+            for (let b = 0; b < Math.floor(beat); b++)
+                seconds += lengths[b] ?? lengths[lengths.length - 1];
 
-            return seconds + (beat - Math.floor(beat)) * (lengths[Math.floor(beat)] ?? lengths[lengths.length - 1]);
+            return (
+                seconds +
+                (beat - Math.floor(beat)) *
+                    (lengths[Math.floor(beat)] ?? lengths[lengths.length - 1])
+            );
         };
 
         for (const part of document.parts) {
@@ -108,7 +134,8 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
 
             for (const note of part.bars[bar - 1]?.notes ?? []) {
                 const start = time + startOf(note.start);
-                const seconds = startOf(note.start + note.length) - startOf(note.start);
+                const seconds =
+                    startOf(note.start + note.length) - startOf(note.start);
                 const previous = lastTone.get(part.id);
 
                 if (note.tie && previous) {
@@ -126,38 +153,74 @@ export function play(document: ScoreDocument, doh: string, steps: PlayStep[], he
                 const pitch = midi + OCTAVE_SHIFT[part.id];
 
                 // Inside a slur the sound carries on and glides to the new pitch.
-                if (previous?.slur && Math.abs(previous.start + previous.seconds - start) < 0.01) {
+                if (
+                    previous?.slur &&
+                    Math.abs(previous.start + previous.seconds - start) < 0.01
+                ) {
                     previous.glide.push({ midi: pitch, at: start });
                     previous.seconds = start + seconds - previous.start;
                     previous.slur = !!note.slur;
                     continue;
                 }
 
-                const tone = { voice: part.id, midi: pitch, start, seconds, gain, slur: !!note.slur, glide: [] };
+                const tone = {
+                    voice: part.id,
+                    midi: pitch,
+                    start,
+                    seconds,
+                    gain,
+                    slur: !!note.slur,
+                    glide: [],
+                };
                 tones.push(tone);
                 lastTone.set(part.id, tone);
             }
         }
 
         const total = lengths.reduce((a, b) => a + b, 0);
-        timeline.push({ bar, pass, at: time, beats: lengths.map((_, i) => time + startOf(i)), end: time + total });
+        timeline.push({
+            bar,
+            pass,
+            at: time,
+            beats: lengths.map((_, i) => time + startOf(i)),
+            end: time + total,
+        });
         time += total;
     }
 
-    for (const tone of tones) oscillators.push(playTone(tone.midi, tone.start, tone.seconds, NOTE_VOLUME, tone.gain, tone.glide));
+    for (const tone of tones)
+        oscillators.push(
+            playTone(
+                tone.midi,
+                tone.start,
+                tone.seconds,
+                NOTE_VOLUME,
+                tone.gain,
+                tone.glide,
+            ),
+        );
 
     return {
         endsAt: time,
         timeline,
         hear: (voices) => {
             gains.forEach((gain, voice) => {
-                gain.gain.setTargetAtTime(voices.includes(voice) ? 1 : 0, ctx.currentTime, 0.02);
+                gain.gain.setTargetAtTime(
+                    voices.includes(voice) ? 1 : 0,
+                    ctx.currentTime,
+                    0.02,
+                );
             });
         },
         mix: (levels) => {
             gains.forEach((gain, voice) => {
                 const level = levels[voice];
-                if (level !== undefined) gain.gain.setTargetAtTime(Math.max(0, Math.min(1, level)), ctx.currentTime, 0.02);
+                if (level !== undefined)
+                    gain.gain.setTargetAtTime(
+                        Math.max(0, Math.min(1, level)),
+                        ctx.currentTime,
+                        0.02,
+                    );
             });
         },
         stop: () => {

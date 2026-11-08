@@ -5,7 +5,11 @@ import { dashboardUrl } from '@/lib/dashboard-url';
 import type { DashboardProps } from '@/types';
 
 function Label({ children }: { children: string }) {
-    return <div className="text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">{children}</div>;
+    return (
+        <div className="text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">
+            {children}
+        </div>
+    );
 }
 
 /**
@@ -45,7 +49,9 @@ export function InsightRail({
                         <div className="w-9.5 shrink-0 font-display text-[24px] leading-7 font-bold tracking-[-0.03em] text-ink">
                             {row.value}
                         </div>
-                        <div className="text-[12.5px] leading-4 text-pencil">{row.label}</div>
+                        <div className="text-[12.5px] leading-4 text-pencil">
+                            {row.label}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -54,18 +60,28 @@ export function InsightRail({
                 <Label>RECENT ACTIVITY</Label>
                 <div className="flex flex-col gap-3">
                     {activity.map((item) => (
-                        <Link key={item.id} href={`/scores/${item.score_id}`} className="flex shrink-0 items-start gap-2.5">
+                        <Link
+                            key={item.id}
+                            href={`/scores/${item.score_id}`}
+                            className="flex shrink-0 items-start gap-2.5"
+                        >
                             <span className="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-copy font-solfa text-[9px] leading-3 text-ink">
                                 {item.initials}
                             </span>
                             <span className="flex min-w-0 grow basis-0 flex-col gap-px">
-                                <span className="text-[12.5px] leading-4 font-semibold text-ink">{item.user_name}</span>
-                                <span className="text-[11.5px] leading-3.75 text-pencil">{item.text}</span>
+                                <span className="text-[12.5px] leading-4 font-semibold text-ink">
+                                    {item.user_name}
+                                </span>
+                                <span className="text-[11.5px] leading-3.75 text-pencil">
+                                    {item.text}
+                                </span>
                             </span>
                         </Link>
                     ))}
                     {activity.length === 0 && (
-                        <span className="text-[11.5px] leading-3.75 text-pencil">Saves and edits will show here.</span>
+                        <span className="text-[11.5px] leading-3.75 text-pencil">
+                            Saves and edits will show here.
+                        </span>
                     )}
                 </div>
             </div>
@@ -74,28 +90,49 @@ export function InsightRail({
                 <div className="flex flex-col border-t border-rule pt-4.5">
                     <div className="flex items-center justify-between">
                         <Label>NEXT REHEARSAL</Label>
-                        {rehearsal && <span className="text-[11px] leading-3.5 text-pencil">{rehearsal.in}</span>}
+                        {rehearsal && (
+                            <span className="text-[11px] leading-3.5 text-pencil">
+                                {rehearsal.in}
+                            </span>
+                        )}
                     </div>
                     {rehearsal ? (
                         <>
-                            <div className="pt-3 text-[13px] leading-4.5 font-semibold text-ink">{rehearsal.when}</div>
+                            <div className="pt-3 text-[13px] leading-4.5 font-semibold text-ink">
+                                {rehearsal.when}
+                            </div>
                             <div className="pt-1 text-[11.5px] leading-3.75 text-pencil">
                                 {rehearsal.ensemble}
-                                {rehearsal.singers ? ` · ${rehearsal.singers} singers` : ''}
+                                {rehearsal.singers
+                                    ? ` · ${rehearsal.singers} singers`
+                                    : ''}
                             </div>
                             <Link
-                                href={dashboardUrl({ view: 'rehearsal', rehearsal: rehearsal.id })}
+                                href={dashboardUrl({
+                                    view: 'rehearsal',
+                                    rehearsal: rehearsal.id,
+                                })}
                                 className="flex items-center gap-1.25 pt-3 text-ink"
                             >
-                                <span className="text-[12.5px] leading-4 font-semibold">Rehearsal plan</span>
+                                <span className="text-[12.5px] leading-4 font-semibold">
+                                    Rehearsal plan
+                                </span>
                                 <ArrowRightIcon size={11} strokeWidth={1.7} />
                             </Link>
                         </>
                     ) : (
                         <>
-                            <div className="pt-3 text-[11.5px] leading-3.75 text-pencil">Nothing planned yet.</div>
-                            <button type="button" onClick={onPlanRehearsal} className="flex items-center gap-1.25 pt-3 text-ink">
-                                <span className="text-[12.5px] leading-4 font-semibold">Plan a rehearsal</span>
+                            <div className="pt-3 text-[11.5px] leading-3.75 text-pencil">
+                                Nothing planned yet.
+                            </div>
+                            <button
+                                type="button"
+                                onClick={onPlanRehearsal}
+                                className="flex items-center gap-1.25 pt-3 text-ink"
+                            >
+                                <span className="text-[12.5px] leading-4 font-semibold">
+                                    Plan a rehearsal
+                                </span>
                                 <ArrowRightIcon size={11} strokeWidth={1.7} />
                             </button>
                         </>
@@ -110,7 +147,9 @@ export function InsightRail({
                 onClick={onJump}
                 className="flex shrink-0 items-center justify-between border-t border-rule pt-3 text-left"
             >
-                <span className="text-[11px] leading-3.5 text-pencil">Jump to any score</span>
+                <span className="text-[11px] leading-3.5 text-pencil">
+                    Jump to any score
+                </span>
                 <kbd className="flex items-center gap-0.75 rounded-[4px] bg-copy px-1.5 py-0.75 font-solfa text-[10px] leading-3 text-pencil">
                     ⌘K
                 </kbd>

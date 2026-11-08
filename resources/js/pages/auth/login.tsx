@@ -94,7 +94,7 @@ export default function Login({ status }: { status?: string | null }) {
                     <button
                         type="submit"
                         disabled={form.processing}
-                        className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-full bg-ink text-[13.5px] font-semibold text-paper outline-none transition hover:bg-ink/85 focus-visible:ring-2 focus-visible:ring-ink/20 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-full bg-ink text-[13.5px] font-semibold text-paper transition outline-none hover:bg-ink/85 focus-visible:ring-2 focus-visible:ring-ink/20 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {form.processing ? 'Signing in…' : 'Sign in'}
                     </button>

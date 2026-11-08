@@ -20,20 +20,36 @@ export const TopBar = forwardRef<
         onNewScore: () => void;
         notifications: { unread: number; items: NotificationItem[] };
     }
->(function TopBar({ user, crumb, search, onSearch, onNewScore, notifications }, searchRef) {
+>(function TopBar(
+    { user, crumb, search, onSearch, onNewScore, notifications },
+    searchRef,
+) {
     return (
         <header className="flex h-15 w-full shrink-0 items-center justify-between gap-3 border-b border-rule bg-paper px-4 sm:px-5">
             <div className="flex shrink-0 items-center gap-5">
-                <Link href="/dashboard" className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
+                <Link
+                    href="/dashboard"
+                    className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                >
                     <Logo className="max-sm:[&>span:last-child]:hidden" />
                 </Link>
                 <div className="hidden h-5 w-px shrink-0 bg-rule md:block" />
-                <nav className="hidden items-center gap-2 whitespace-nowrap md:flex" aria-label="Breadcrumb">
-                    <Link href="/dashboard" className="text-[13.5px] leading-4.5 text-pencil hover:text-ink">
+                <nav
+                    className="hidden items-center gap-2 whitespace-nowrap md:flex"
+                    aria-label="Breadcrumb"
+                >
+                    <Link
+                        href="/dashboard"
+                        className="text-[13.5px] leading-4.5 text-pencil hover:text-ink"
+                    >
                         Workspace
                     </Link>
-                    <span className="text-[13.5px] leading-4.5 text-faint">/</span>
-                    <span className="text-[13.5px] leading-4.5 font-medium text-ink">{crumb}</span>
+                    <span className="text-[13.5px] leading-4.5 text-faint">
+                        /
+                    </span>
+                    <span className="text-[13.5px] leading-4.5 font-medium text-ink">
+                        {crumb}
+                    </span>
                 </nav>
             </div>
 
@@ -49,21 +65,26 @@ export const TopBar = forwardRef<
                         autoComplete="off"
                         className="min-w-0 grow bg-transparent text-[13px] leading-4 text-ink outline-none placeholder:text-pencil"
                     />
-                    <kbd className="hidden shrink-0 items-center sm:flex rounded-[4px] bg-paper px-1.25 py-0.5 font-solfa text-[10px] leading-3 text-pencil">
+                    <kbd className="hidden shrink-0 items-center rounded-[4px] bg-paper px-1.25 py-0.5 font-solfa text-[10px] leading-3 text-pencil sm:flex">
                         ⌘K
                     </kbd>
                 </label>
 
-                <NotificationsMenu unread={notifications.unread} items={notifications.items} />
+                <NotificationsMenu
+                    unread={notifications.unread}
+                    items={notifications.items}
+                />
 
                 <button
                     type="button"
                     onClick={onNewScore}
                     aria-label="New score"
-                    className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-2.75 text-paper sm:px-4 outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
+                    className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-2.75 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 sm:px-4"
                 >
                     <PlusIcon />
-                    <span className="hidden text-[13.5px] leading-4.5 font-semibold whitespace-nowrap sm:inline">New score</span>
+                    <span className="hidden text-[13.5px] leading-4.5 font-semibold whitespace-nowrap sm:inline">
+                        New score
+                    </span>
                 </button>
 
                 <AvatarMenu user={user} />

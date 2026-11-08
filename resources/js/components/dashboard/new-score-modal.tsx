@@ -32,7 +32,10 @@ const ROLES: Record<Voice, string> = {
 
 function Label({ children, htmlFor }: { children: string; htmlFor?: string }) {
     return (
-        <label htmlFor={htmlFor} className="block text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+        <label
+            htmlFor={htmlFor}
+            className="block text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil"
+        >
             {children}
         </label>
     );
@@ -42,7 +45,15 @@ function Label({ children, htmlFor }: { children: string; htmlFor?: string }) {
  * "Write a new piece" — title, composer, doh, time, bars and parts, then
  * straight into the first part.
  */
-export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose: () => void; user: User }) {
+export function NewScoreModal({
+    open,
+    onClose,
+    user,
+}: {
+    open: boolean;
+    onClose: () => void;
+    user: User;
+}) {
     const form = useForm<NewScoreForm>({
         title: '',
         composer: user.name,
@@ -61,7 +72,8 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
         form.reset();
         form.clearErrors();
 
-        const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+        const onKey = (event: KeyboardEvent) =>
+            event.key === 'Escape' && onClose();
         document.addEventListener('keydown', onKey);
 
         return () => document.removeEventListener('keydown', onKey);
@@ -80,8 +92,13 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
 
     const togglePart = (voice: Voice) => {
         const has = form.data.parts.includes(voice);
-        const next = has ? form.data.parts.filter((v) => v !== voice) : [...form.data.parts, voice];
-        form.setData('parts', (['S', 'A', 'T', 'B'] as Voice[]).filter((v) => next.includes(v)));
+        const next = has
+            ? form.data.parts.filter((v) => v !== voice)
+            : [...form.data.parts, voice];
+        form.setData(
+            'parts',
+            (['S', 'A', 'T', 'B'] as Voice[]).filter((v) => next.includes(v)),
+        );
     };
 
     const first = form.data.parts[0];
@@ -89,7 +106,9 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4"
-            onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+            onMouseDown={(event) =>
+                event.target === event.currentTarget && onClose()
+            }
         >
             <form
                 role="dialog"
@@ -102,8 +121,15 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                 className="flex max-h-[calc(100vh-32px)] w-full max-w-[460px] flex-col overflow-y-auto rounded-[16px] border border-rule bg-paper p-6 shadow-[0_20px_50px_#00000024]"
             >
                 <div className="flex items-center justify-between">
-                    <span className="font-solfa text-[12px] leading-4 text-pencil">New score</span>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-pencil hover:text-ink">
+                    <span className="font-solfa text-[12px] leading-4 text-pencil">
+                        New score
+                    </span>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="text-pencil hover:text-ink"
+                    >
                         <CloseIcon />
                     </button>
                 </div>
@@ -125,11 +151,17 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                         autoFocus
                         required
                         value={form.data.title}
-                        onChange={(event) => form.setData('title', event.target.value)}
+                        onChange={(event) =>
+                            form.setData('title', event.target.value)
+                        }
                         placeholder="Onyame Ye"
                         className="bg-transparent text-[19px] leading-6 font-semibold text-ink outline-none placeholder:text-dot"
                     />
-                    {form.errors.title && <p className="text-[12px] text-danger">{form.errors.title}</p>}
+                    {form.errors.title && (
+                        <p className="text-[12px] text-danger">
+                            {form.errors.title}
+                        </p>
+                    )}
                 </div>
 
                 <div className="flex gap-4 border-b border-rule pt-4 pb-3">
@@ -138,7 +170,9 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                         <input
                             id="score-composer"
                             value={form.data.composer}
-                            onChange={(event) => form.setData('composer', event.target.value)}
+                            onChange={(event) =>
+                                form.setData('composer', event.target.value)
+                            }
                             className="bg-transparent text-[16px] leading-5 text-ink outline-none"
                         />
                     </div>
@@ -147,7 +181,9 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                         <input
                             id="score-arranger"
                             value={form.data.arranger}
-                            onChange={(event) => form.setData('arranger', event.target.value)}
+                            onChange={(event) =>
+                                form.setData('arranger', event.target.value)
+                            }
                             placeholder="Optional"
                             className="bg-transparent text-[16px] leading-5 text-ink outline-none placeholder:text-dot"
                         />
@@ -165,7 +201,9 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                                 aria-pressed={form.data.doh === doh}
                                 className={cn(
                                     'flex h-11 items-center justify-center rounded-sm text-[15px] leading-5 font-medium',
-                                    form.data.doh === doh ? 'bg-ink font-bold text-paper' : 'bg-copy text-ink hover:bg-rule',
+                                    form.data.doh === doh
+                                        ? 'bg-ink font-bold text-paper'
+                                        : 'bg-copy text-ink hover:bg-rule',
                                 )}
                             >
                                 {keyLabel(doh)}
@@ -173,7 +211,8 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                         ))}
                     </div>
                     <p className="text-[12px] leading-4 text-pencil">
-                        Hear doh before you start · Tap to play {keyLabel(form.data.doh)}
+                        Hear doh before you start · Tap to play{' '}
+                        {keyLabel(form.data.doh)}
                     </p>
                 </div>
 
@@ -185,11 +224,17 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                                 <button
                                     key={time.beats}
                                     type="button"
-                                    onClick={() => form.setData('beats', time.beats)}
-                                    aria-pressed={form.data.beats === time.beats}
+                                    onClick={() =>
+                                        form.setData('beats', time.beats)
+                                    }
+                                    aria-pressed={
+                                        form.data.beats === time.beats
+                                    }
                                     className={cn(
                                         'h-8 grow basis-0 rounded-full font-solfa text-[13px] leading-4',
-                                        form.data.beats === time.beats ? 'bg-paper text-ink' : 'text-pencil',
+                                        form.data.beats === time.beats
+                                            ? 'bg-paper text-ink'
+                                            : 'text-pencil',
                                     )}
                                 >
                                     {time.label}
@@ -203,16 +248,28 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                             <button
                                 type="button"
                                 aria-label="Fewer bars"
-                                onClick={() => form.setData('bars', Math.max(1, form.data.bars - 1))}
+                                onClick={() =>
+                                    form.setData(
+                                        'bars',
+                                        Math.max(1, form.data.bars - 1),
+                                    )
+                                }
                                 className="flex size-7 items-center justify-center rounded-full text-[16px] text-ink hover:bg-paper"
                             >
                                 –
                             </button>
-                            <span className="font-display text-[17px] leading-5 font-bold text-ink">{form.data.bars}</span>
+                            <span className="font-display text-[17px] leading-5 font-bold text-ink">
+                                {form.data.bars}
+                            </span>
                             <button
                                 type="button"
                                 aria-label="More bars"
-                                onClick={() => form.setData('bars', Math.min(200, form.data.bars + 1))}
+                                onClick={() =>
+                                    form.setData(
+                                        'bars',
+                                        Math.min(200, form.data.bars + 1),
+                                    )
+                                }
                                 className="flex size-7 items-center justify-center rounded-full text-[16px] text-ink hover:bg-paper"
                             >
                                 +
@@ -236,19 +293,30 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                                     aria-label={VOICE_NAMES[voice]}
                                     className={cn(
                                         'flex h-15.5 flex-col items-start justify-between rounded-md px-3 py-2.5 text-left',
-                                        on ? 'bg-ink text-paper' : 'bg-copy text-pencil',
+                                        on
+                                            ? 'bg-ink text-paper'
+                                            : 'bg-copy text-pencil',
                                     )}
                                 >
-                                    <span className="font-display text-[19px] leading-5 font-extrabold">{voice}</span>
-                                    <span className="text-[12px] leading-4 opacity-75">{ROLES[voice]}</span>
+                                    <span className="font-display text-[19px] leading-5 font-extrabold">
+                                        {voice}
+                                    </span>
+                                    <span className="text-[12px] leading-4 opacity-75">
+                                        {ROLES[voice]}
+                                    </span>
                                 </button>
                             );
                         })}
                     </div>
                     <p className="text-[12px] leading-4 text-pencil">
-                        Write them in any order. Most composers start with the soprano melody.
+                        Write them in any order. Most composers start with the
+                        soprano melody.
                     </p>
-                    {form.errors.parts && <p className="text-[12px] text-danger">{form.errors.parts}</p>}
+                    {form.errors.parts && (
+                        <p className="text-[12px] text-danger">
+                            {form.errors.parts}
+                        </p>
+                    )}
                 </div>
 
                 <button
@@ -258,7 +326,9 @@ export function NewScoreModal({ open, onClose, user }: { open: boolean; onClose:
                 >
                     <PenIcon />
                     <span className="text-[16px] leading-5 font-semibold">
-                        {form.processing ? 'Starting…' : `Start with ${first ? VOICE_NAMES[first] : 'a part'}`}
+                        {form.processing
+                            ? 'Starting…'
+                            : `Start with ${first ? VOICE_NAMES[first] : 'a part'}`}
                     </span>
                 </button>
             </form>

@@ -8,7 +8,13 @@ import type { NotificationItem } from '@/types';
  * The bell in the top bar. A marker dot means something new; opening it
  * shows the latest and marks them seen.
  */
-export function NotificationsMenu({ unread, items }: { unread: number; items: NotificationItem[] }) {
+export function NotificationsMenu({
+    unread,
+    items,
+}: {
+    unread: number;
+    items: NotificationItem[];
+}) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -19,7 +25,15 @@ export function NotificationsMenu({ unread, items }: { unread: number; items: No
         setOpen(next);
 
         if (next && unread > 0) {
-            router.post('/notifications/read', {}, { preserveScroll: true, preserveState: true, only: ['notifications'] });
+            router.post(
+                '/notifications/read',
+                {},
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    only: ['notifications'],
+                },
+            );
         }
     };
 
@@ -28,12 +42,16 @@ export function NotificationsMenu({ unread, items }: { unread: number; items: No
             <button
                 type="button"
                 onClick={toggle}
-                aria-label={unread > 0 ? `${unread} new notifications` : 'Notifications'}
+                aria-label={
+                    unread > 0 ? `${unread} new notifications` : 'Notifications'
+                }
                 aria-expanded={open}
                 className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-copy text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
             >
                 <BellIcon />
-                {unread > 0 && <span className="absolute top-2 right-2.25 size-1.5 rounded-full bg-marker" />}
+                {unread > 0 && (
+                    <span className="absolute top-2 right-2.25 size-1.5 rounded-full bg-marker" />
+                )}
             </button>
 
             {open && (
@@ -42,21 +60,31 @@ export function NotificationsMenu({ unread, items }: { unread: number; items: No
                         NOTIFICATIONS
                     </p>
                     {items.length === 0 ? (
-                        <p className="text-[12.5px] leading-4 text-pencil">Nothing new yet.</p>
+                        <p className="text-[12.5px] leading-4 text-pencil">
+                            Nothing new yet.
+                        </p>
                     ) : (
                         <div className="flex flex-col gap-3">
                             {items.map((item) => (
                                 <Link
                                     key={item.id}
-                                    href={item.score_id ? `/scores/${item.score_id}` : '/dashboard'}
+                                    href={
+                                        item.score_id
+                                            ? `/scores/${item.score_id}`
+                                            : '/dashboard'
+                                    }
                                     className="flex items-start gap-2.5"
                                 >
                                     <span className="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-copy font-solfa text-[9px] leading-3 text-ink">
                                         {item.initials}
                                     </span>
                                     <span className="flex min-w-0 grow flex-col gap-px">
-                                        <span className="text-[12.5px] leading-4 font-semibold text-ink">{item.actor}</span>
-                                        <span className="text-[11.5px] leading-3.75 text-pencil">{item.text}</span>
+                                        <span className="text-[12.5px] leading-4 font-semibold text-ink">
+                                            {item.actor}
+                                        </span>
+                                        <span className="text-[11.5px] leading-3.75 text-pencil">
+                                            {item.text}
+                                        </span>
                                     </span>
                                 </Link>
                             ))}
