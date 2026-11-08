@@ -33,11 +33,13 @@ class RehearsalController extends Controller
             'starts_at' => Carbon::createFromFormat('Y-m-d H:i', "{$validated['date']} {$validated['time']}"),
         ]);
 
-        $ids = Score::query()
+        // Keep the order the director chose; only their own scores count.
+        $chosen = collect(array_values(array_unique(array_filter($request->array('score_ids'), is_string(...)))));
+        $owned = Score::query()
             ->where('owner_id', $user->id)
-            ->whereIn('id', $validated['score_ids'] ?? [])
-            ->pluck('id')
-            ->values();
+            ->whereIn('id', $chosen)
+            ->pluck('id');
+        $ids = $chosen->filter(fn (string $id) => $owned->contains($id))->values();
 
         $rehearsal->scores()->sync(
             $ids->mapWithKeys(fn (string $id, int $position) => [$id => ['position' => $position]])->all(),
