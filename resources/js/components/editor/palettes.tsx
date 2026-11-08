@@ -30,9 +30,23 @@ function Key({
                 active ? 'bg-marker' : 'bg-white/8 hover:bg-white/14',
             )}
         >
-            <span className={cn(labelClass ?? 'font-solfa text-[16px] leading-5', active ? 'text-ink' : 'text-paper')}>{label}</span>
+            <span
+                className={cn(
+                    labelClass ?? 'font-solfa text-[16px] leading-5',
+                    active ? 'text-ink' : 'text-paper',
+                )}
+            >
+                {label}
+            </span>
             {hint !== undefined && (
-                <span className={cn('text-[10px] leading-3', active ? 'text-black/55' : 'text-white/50')}>{hint}</span>
+                <span
+                    className={cn(
+                        'text-[10px] leading-3',
+                        active ? 'text-black/55' : 'text-white/50',
+                    )}
+                >
+                    {hint}
+                </span>
             )}
         </button>
     );
@@ -42,7 +56,15 @@ function Divider() {
     return <div className="h-8 w-px shrink-0 bg-white/15" />;
 }
 
-function NextKey({ label, kbd, onPress }: { label: string; kbd: string; onPress: () => void }) {
+function NextKey({
+    label,
+    kbd,
+    onPress,
+}: {
+    label: string;
+    kbd: string;
+    onPress: () => void;
+}) {
     return (
         <button
             type="button"
@@ -50,8 +72,12 @@ function NextKey({ label, kbd, onPress }: { label: string; kbd: string; onPress:
             onClick={onPress}
             className="flex h-11 shrink-0 items-center gap-2 rounded-[10px] bg-paper px-3.5 whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-marker"
         >
-            <span className="text-[13px] leading-4 font-semibold text-ink">{label}</span>
-            <span className="rounded-[4px] border border-rule px-1.5 py-0.5 text-[11px] leading-3.5 text-pencil">{kbd}</span>
+            <span className="text-[13px] leading-4 font-semibold text-ink">
+                {label}
+            </span>
+            <span className="rounded-[4px] border border-rule px-1.5 py-0.5 text-[11px] leading-3.5 text-pencil">
+                {kbd}
+            </span>
         </button>
     );
 }
@@ -83,7 +109,15 @@ export type NoteAction =
  * keys, hold / half-beat / rest, and Next beat. Each key shows its
  * keyboard shortcut.
  */
-export function NotePalette({ current, slurred = false, onAction }: { current: Pitch | null; slurred?: boolean; onAction: (action: NoteAction) => void }) {
+export function NotePalette({
+    current,
+    slurred = false,
+    onAction,
+}: {
+    current: Pitch | null;
+    slurred?: boolean;
+    onAction: (action: NoteAction) => void;
+}) {
     return (
         <div className="flex w-max items-center gap-3.5 rounded-[16px] bg-ink px-3 py-2.5 shadow-[0_16px_40px_#00000040]">
             <div className="flex gap-1">
@@ -92,22 +126,62 @@ export function NotePalette({ current, slurred = false, onAction }: { current: P
                         key={p.pitch}
                         label={p.label}
                         hint={p.key}
-                        active={current === p.pitch || (p.pitch === 'f' && current === 'fe') || (p.pitch === 't' && current === 'ta')}
-                        onPress={() => onAction({ type: 'pitch', pitch: p.pitch })}
+                        active={
+                            current === p.pitch ||
+                            (p.pitch === 'f' && current === 'fe') ||
+                            (p.pitch === 't' && current === 'ta')
+                        }
+                        onPress={() =>
+                            onAction({ type: 'pitch', pitch: p.pitch })
+                        }
                     />
                 ))}
             </div>
             <Divider />
             <div className="flex gap-1">
-                <Key label="x₁" hint="," title="Lower octave (press twice for two: d₂)" onPress={() => onAction({ type: 'octave', by: -1 })} />
-                <Key label="x'" hint="'" title="Higher octave (press twice for two: d'')" onPress={() => onAction({ type: 'octave', by: 1 })} />
-                <Key label="fe" hint="↑" title="Sharpen fah" onPress={() => onAction({ type: 'chromatic', direction: 'up' })} />
-                <Key label="ta" hint="↓" title="Flatten te" onPress={() => onAction({ type: 'chromatic', direction: 'down' })} />
+                <Key
+                    label="x₁"
+                    hint=","
+                    title="Lower octave (press twice for two: d₂)"
+                    onPress={() => onAction({ type: 'octave', by: -1 })}
+                />
+                <Key
+                    label="x'"
+                    hint="'"
+                    title="Higher octave (press twice for two: d'')"
+                    onPress={() => onAction({ type: 'octave', by: 1 })}
+                />
+                <Key
+                    label="fe"
+                    hint="↑"
+                    title="Sharpen fah"
+                    onPress={() =>
+                        onAction({ type: 'chromatic', direction: 'up' })
+                    }
+                />
+                <Key
+                    label="ta"
+                    hint="↓"
+                    title="Flatten te"
+                    onPress={() =>
+                        onAction({ type: 'chromatic', direction: 'down' })
+                    }
+                />
             </div>
             <Divider />
             <div className="flex gap-1">
-                <Key label="–" hint="–" title="Hold the note (inside a beat: one more quarter, d.,r)" onPress={() => onAction({ type: 'hold' })} />
-                <Key label="." hint="." title="Split the note: d.r, then again for quarters d.r,m" onPress={() => onAction({ type: 'half' })} />
+                <Key
+                    label="–"
+                    hint="–"
+                    title="Hold the note (inside a beat: one more quarter, d.,r)"
+                    onPress={() => onAction({ type: 'hold' })}
+                />
+                <Key
+                    label="."
+                    hint="."
+                    title="Split the note: d.r, then again for quarters d.r,m"
+                    onPress={() => onAction({ type: 'half' })}
+                />
                 <Key
                     label="⅓"
                     hint="3"
@@ -130,7 +204,11 @@ export function NotePalette({ current, slurred = false, onAction }: { current: P
                     onPress={() => onAction({ type: 'rest' })}
                 />
             </div>
-            <NextKey label="Next beat" kbd="Tab" onPress={() => onAction({ type: 'next' })} />
+            <NextKey
+                label="Next beat"
+                kbd="Tab"
+                onPress={() => onAction({ type: 'next' })}
+            />
         </div>
     );
 }
@@ -148,7 +226,17 @@ export type TextAction =
     | { type: 'footnote' }
     | { type: 'next' };
 
-function WideKey({ title, sub, active = false, onPress }: { title: string; sub: string; active?: boolean; onPress: () => void }) {
+function WideKey({
+    title,
+    sub,
+    active = false,
+    onPress,
+}: {
+    title: string;
+    sub: string;
+    active?: boolean;
+    onPress: () => void;
+}) {
     return (
         <button
             type="button"
@@ -159,19 +247,44 @@ function WideKey({ title, sub, active = false, onPress }: { title: string; sub: 
                 active ? 'bg-marker' : 'bg-white/8 hover:bg-white/14',
             )}
         >
-            <span className={cn('text-[13px] leading-4 font-semibold', active ? 'text-ink' : 'text-paper')}>{title}</span>
-            <span className={cn('text-[10px] leading-3', active ? 'text-black/55' : 'text-white/50')}>{sub}</span>
+            <span
+                className={cn(
+                    'text-[13px] leading-4 font-semibold',
+                    active ? 'text-ink' : 'text-paper',
+                )}
+            >
+                {title}
+            </span>
+            <span
+                className={cn(
+                    'text-[10px] leading-3',
+                    active ? 'text-black/55' : 'text-white/50',
+                )}
+            >
+                {sub}
+            </span>
         </button>
     );
 }
 
-function TextKey({ children, onPress, className }: { children: string; onPress: () => void; className: string }) {
+function TextKey({
+    children,
+    onPress,
+    className,
+}: {
+    children: string;
+    onPress: () => void;
+    className: string;
+}) {
     return (
         <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={onPress}
-            className={cn('flex h-11 items-center rounded-[8px] bg-white/8 px-3 text-paper hover:bg-white/14', className)}
+            className={cn(
+                'flex h-11 items-center rounded-[8px] bg-white/8 px-3 text-paper hover:bg-white/14',
+                className,
+            )}
         >
             {children}
         </button>
@@ -182,19 +295,49 @@ function TextKey({ children, onPress, className }: { children: string; onPress: 
  * The floating words & text palette (Paper W2): current verse, new verse,
  * split / hold, Twi letters, f, rit., D.S., Text, Footnote and Next note.
  */
-export function TextPalette({ verseLabel, onAction }: { verseLabel: string; onAction: (action: TextAction) => void }) {
+export function TextPalette({
+    verseLabel,
+    onAction,
+}: {
+    verseLabel: string;
+    onAction: (action: TextAction) => void;
+}) {
     return (
         <div className="flex w-max items-center gap-3 rounded-[16px] bg-ink px-3 py-2.5 shadow-[0_16px_40px_#00000040]">
             <div className="flex gap-1">
-                <WideKey title="Lyric" sub={verseLabel} active onPress={() => onAction({ type: 'verse' })} />
-                <WideKey title="+ Verse" sub="new line" onPress={() => onAction({ type: 'add-verse' })} />
+                <WideKey
+                    title="Lyric"
+                    sub={verseLabel}
+                    active
+                    onPress={() => onAction({ type: 'verse' })}
+                />
+                <WideKey
+                    title="+ Verse"
+                    sub="new line"
+                    onPress={() => onAction({ type: 'add-verse' })}
+                />
             </div>
             <Divider />
             <div className="flex gap-1">
-                <Key label="–" hint="split" labelClass="text-[16px] leading-5" onPress={() => onAction({ type: 'split' })} />
-                <Key label="__" hint="hold" labelClass="text-[16px] leading-5" onPress={() => onAction({ type: 'hold' })} />
+                <Key
+                    label="–"
+                    hint="split"
+                    labelClass="text-[16px] leading-5"
+                    onPress={() => onAction({ type: 'split' })}
+                />
+                <Key
+                    label="__"
+                    hint="hold"
+                    labelClass="text-[16px] leading-5"
+                    onPress={() => onAction({ type: 'hold' })}
+                />
                 {['ɛ', 'ɔ', 'ŋ'].map((letter) => (
-                    <Key key={letter} label={letter} labelClass="text-[17px] leading-5.5" onPress={() => onAction({ type: 'letter', letter })} />
+                    <Key
+                        key={letter}
+                        label={letter}
+                        labelClass="text-[17px] leading-5.5"
+                        onPress={() => onAction({ type: 'letter', letter })}
+                    />
                 ))}
             </div>
             <Divider />
@@ -205,20 +348,36 @@ export function TextPalette({ verseLabel, onAction }: { verseLabel: string; onAc
                     title="Dynamic"
                     onPress={() => onAction({ type: 'dynamic' })}
                 />
-                <TextKey className="text-[13px] leading-4 italic" onPress={() => onAction({ type: 'rit' })}>
+                <TextKey
+                    className="text-[13px] leading-4 italic"
+                    onPress={() => onAction({ type: 'rit' })}
+                >
                     rit.
                 </TextKey>
-                <TextKey className="font-solfa text-[13px] leading-4" onPress={() => onAction({ type: 'ds' })}>
+                <TextKey
+                    className="font-solfa text-[13px] leading-4"
+                    onPress={() => onAction({ type: 'ds' })}
+                >
                     D.S.
                 </TextKey>
-                <TextKey className="text-[13px] leading-4 font-semibold" onPress={() => onAction({ type: 'text' })}>
+                <TextKey
+                    className="text-[13px] leading-4 font-semibold"
+                    onPress={() => onAction({ type: 'text' })}
+                >
                     Text
                 </TextKey>
-                <TextKey className="text-[13px] leading-4 font-semibold" onPress={() => onAction({ type: 'footnote' })}>
+                <TextKey
+                    className="text-[13px] leading-4 font-semibold"
+                    onPress={() => onAction({ type: 'footnote' })}
+                >
                     Footnote
                 </TextKey>
             </div>
-            <NextKey label="Next note" kbd="Space" onPress={() => onAction({ type: 'next' })} />
+            <NextKey
+                label="Next note"
+                kbd="Space"
+                onPress={() => onAction({ type: 'next' })}
+            />
         </div>
     );
 }

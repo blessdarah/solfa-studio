@@ -13,7 +13,10 @@ type RehearsalForm = {
 
 function Label({ children, htmlFor }: { children: string; htmlFor?: string }) {
     return (
-        <label htmlFor={htmlFor} className="block text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+        <label
+            htmlFor={htmlFor}
+            className="block text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil"
+        >
             {children}
         </label>
     );
@@ -57,13 +60,17 @@ export function RehearsalModal({
     const toggle = (id: string) =>
         form.setData(
             'score_ids',
-            form.data.score_ids.includes(id) ? form.data.score_ids.filter((s) => s !== id) : [...form.data.score_ids, id],
+            form.data.score_ids.includes(id)
+                ? form.data.score_ids.filter((s) => s !== id)
+                : [...form.data.score_ids, id],
         );
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4"
-            onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+            onMouseDown={(event) =>
+                event.target === event.currentTarget && onClose()
+            }
         >
             <form
                 role="dialog"
@@ -71,16 +78,31 @@ export function RehearsalModal({
                 aria-labelledby="rehearsal-title"
                 onSubmit={(event) => {
                     event.preventDefault();
-                    form.transform((data) => ({ ...data, singers: data.singers === '' ? null : Number(data.singers) }));
-                    form.post('/rehearsals', { preserveScroll: true, onSuccess: () => onClose() });
+                    form.transform((data) => ({
+                        ...data,
+                        singers:
+                            data.singers === '' ? null : Number(data.singers),
+                    }));
+                    form.post('/rehearsals', {
+                        preserveScroll: true,
+                        onSuccess: () => onClose(),
+                    });
                 }}
                 className="flex max-h-[calc(100vh-32px)] w-full max-w-[420px] flex-col gap-4 overflow-y-auto rounded-[16px] border border-rule bg-paper p-5 shadow-[0_20px_50px_#00000024]"
             >
                 <div className="flex items-start justify-between">
-                    <h2 id="rehearsal-title" className="font-display text-[20px] leading-6 font-extrabold tracking-[-0.02em] text-ink">
+                    <h2
+                        id="rehearsal-title"
+                        className="font-display text-[20px] leading-6 font-extrabold tracking-[-0.02em] text-ink"
+                    >
                         Plan a rehearsal
                     </h2>
-                    <button type="button" onClick={onClose} aria-label="Close" className="text-pencil hover:text-ink">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close"
+                        className="text-pencil hover:text-ink"
+                    >
                         <CloseIcon />
                     </button>
                 </div>
@@ -92,7 +114,9 @@ export function RehearsalModal({
                             id="rehearsal-ensemble"
                             required
                             value={form.data.ensemble}
-                            onChange={(e) => form.setData('ensemble', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('ensemble', e.target.value)
+                            }
                             className={input}
                         />
                     </div>
@@ -102,7 +126,12 @@ export function RehearsalModal({
                             id="rehearsal-singers"
                             inputMode="numeric"
                             value={form.data.singers}
-                            onChange={(e) => form.setData('singers', e.target.value.replace(/\D/g, ''))}
+                            onChange={(e) =>
+                                form.setData(
+                                    'singers',
+                                    e.target.value.replace(/\D/g, ''),
+                                )
+                            }
                             className={input}
                         />
                     </div>
@@ -116,7 +145,9 @@ export function RehearsalModal({
                             type="date"
                             required
                             value={form.data.date}
-                            onChange={(e) => form.setData('date', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('date', e.target.value)
+                            }
                             className={input}
                         />
                     </div>
@@ -127,7 +158,9 @@ export function RehearsalModal({
                             type="time"
                             required
                             value={form.data.time}
-                            onChange={(e) => form.setData('time', e.target.value)}
+                            onChange={(e) =>
+                                form.setData('time', e.target.value)
+                            }
                             className={input}
                         />
                     </div>
@@ -150,9 +183,15 @@ export function RehearsalModal({
                                         on && 'bg-wash',
                                     )}
                                 >
-                                    <span className="truncate text-[13px] leading-4 text-ink">{score.title}</span>
+                                    <span className="truncate text-[13px] leading-4 text-ink">
+                                        {score.title}
+                                    </span>
                                     <span className="font-solfa text-[11px] text-pencil">
-                                        {on ? form.data.score_ids.indexOf(score.id) + 1 : ''}
+                                        {on
+                                            ? form.data.score_ids.indexOf(
+                                                  score.id,
+                                              ) + 1
+                                            : ''}
                                     </span>
                                 </button>
                             );
@@ -161,11 +200,17 @@ export function RehearsalModal({
                 </div>
 
                 {(form.errors.date || form.errors.ensemble) && (
-                    <p className="text-[12px] text-danger">{form.errors.date ?? form.errors.ensemble}</p>
+                    <p className="text-[12px] text-danger">
+                        {form.errors.date ?? form.errors.ensemble}
+                    </p>
                 )}
 
                 <div className="flex justify-end gap-2">
-                    <button type="button" onClick={onClose} className="h-9.5 rounded-full bg-copy px-4 text-[14px] leading-4.5 font-semibold text-ink">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="h-9.5 rounded-full bg-copy px-4 text-[14px] leading-4.5 font-semibold text-ink"
+                    >
                         Cancel
                     </button>
                     <button

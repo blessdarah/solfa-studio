@@ -2,7 +2,13 @@ import { keyLabel } from '@/lib/music';
 import { cn } from '@/lib/utils';
 
 /** The square key tile at the start of a library row: "E♭", yellow when it needs review. */
-export function KeyBadge({ doh, alert = false }: { doh: string; alert?: boolean }) {
+export function KeyBadge({
+    doh,
+    alert = false,
+}: {
+    doh: string;
+    alert?: boolean;
+}) {
     return (
         <span
             title={`Doh is ${keyLabel(doh)}`}

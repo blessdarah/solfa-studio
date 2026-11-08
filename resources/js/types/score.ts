@@ -8,7 +8,17 @@
 
 export type Voice = 'S' | 'A' | 'T' | 'B';
 
-export type Pitch = 'd' | 'r' | 'm' | 'f' | 'fe' | 's' | 'l' | 'ta' | 't' | 'rest';
+export type Pitch =
+    | 'd'
+    | 'r'
+    | 'm'
+    | 'f'
+    | 'fe'
+    | 's'
+    | 'l'
+    | 'ta'
+    | 't'
+    | 'rest';
 
 /** -2 = two below (d₂), -1 = low (d₁), 0 = middle (d), 1 = high (d'), 2 = two above (d''). */
 export type Octave = -2 | -1 | 0 | 1 | 2;

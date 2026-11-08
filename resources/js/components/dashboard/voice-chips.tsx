@@ -22,7 +22,10 @@ const STATE_LABEL: Record<VoiceProgress['state'], string> = {
 
 export function VoiceChips({ voices }: { voices: VoiceProgress[] }) {
     return (
-        <div className="flex w-32 shrink-0 items-center gap-1.75" aria-label="Voices">
+        <div
+            className="flex w-32 shrink-0 items-center gap-1.75"
+            aria-label="Voices"
+        >
             {voices.map((voice) => (
                 <span
                     key={voice.voice}

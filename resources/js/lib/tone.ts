@@ -44,7 +44,11 @@ export function playTone(
     if (glide.length > 0) osc.frequency.setValueAtTime(midiToHz(midi), at);
 
     for (const step of glide) {
-        osc.frequency.setTargetAtTime(midiToHz(step.midi), Math.max(at, step.at - 0.01), 0.012);
+        osc.frequency.setTargetAtTime(
+            midiToHz(step.midi),
+            Math.max(at, step.at - 0.01),
+            0.012,
+        );
     }
 
     const end = at + Math.max(0.08, seconds * 0.94);

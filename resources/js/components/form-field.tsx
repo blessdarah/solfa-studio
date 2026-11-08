@@ -22,11 +22,7 @@ export function FormField({
     className,
     ...props
 }: FormFieldProps) {
-    const describedBy = error
-        ? `${id}-error`
-        : hint
-          ? `${id}-hint`
-          : undefined;
+    const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
     return (
         <div>
@@ -43,7 +39,7 @@ export function FormField({
                 aria-invalid={error ? true : undefined}
                 aria-describedby={describedBy}
                 className={cn(
-                    'h-11 w-full rounded-[10px] border bg-paper px-3.5 text-[14px] text-ink outline-none transition',
+                    'h-11 w-full rounded-[10px] border bg-paper px-3.5 text-[14px] text-ink transition outline-none',
                     'placeholder:text-pencil/55',
                     error
                         ? 'border-danger/50 focus:border-danger focus:ring-2 focus:ring-danger/10'
