@@ -55,23 +55,24 @@ export function EditorTopBar({
     onPrint: () => void;
 }) {
     return (
-        <header className="flex h-15 shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
-            <div className="flex items-center gap-5">
+        <header className="flex h-15 shrink-0 items-center justify-between gap-4 border-b border-rule bg-paper px-5 whitespace-nowrap">
+            <div className="flex min-w-0 items-center gap-5">
                 <Link href="/dashboard" className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
-                    <Logo />
+                    <Logo className="max-xl:[&>span:last-child]:hidden" />
                 </Link>
-                <div className="text-[14px] leading-4.5 text-pencil">
+                {/* Below 1280px the breadcrumb gives way; the sheet shows the title anyway. */}
+                <div className="hidden min-w-0 truncate text-[14px] leading-4.5 text-pencil xl:block">
                     <Link href="/dashboard" className="hover:text-ink">
                         Scores
                     </Link>{' '}
                     / {title}
                 </div>
-                <div className="text-[13px] leading-4 text-pencil" aria-live="polite">
+                <div className="shrink-0 text-[13px] leading-4 text-pencil" aria-live="polite">
                     {savedLabel}
                 </div>
             </div>
 
-            <div className="flex gap-1 rounded-full bg-copy p-1" role="tablist" aria-label="Mode">
+            <div className="flex shrink-0 gap-1 rounded-full bg-copy p-1" role="tablist" aria-label="Mode">
                 {MODES.map((item) => {
                     const active = item.mode === mode;
                     const available = item.mode !== 'check';
@@ -86,7 +87,7 @@ export function EditorTopBar({
                             title={available ? undefined : 'Check mode is on its way'}
                             onClick={() => available && onMode(item.mode as EditorMode)}
                             className={cn(
-                                'flex h-8 items-center rounded-full px-4.5 text-[14px] leading-4.5 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
+                                'flex h-8 items-center rounded-full px-3.5 text-[14px] xl:px-4.5 leading-4.5 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
                                 active ? 'bg-ink font-semibold text-paper' : 'font-medium text-pencil',
                                 available && !active && 'hover:text-ink',
                             )}
@@ -97,7 +98,7 @@ export function EditorTopBar({
                 })}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
                 <PlayButton
                     label={playLabel}
                     stopLabel={stopLabel}

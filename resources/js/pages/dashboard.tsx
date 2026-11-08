@@ -130,12 +130,12 @@ export default function Dashboard(props: DashboardProps) {
                         />
                     </div>
 
-                    <main className="flex min-w-0 grow basis-0 flex-col overflow-y-auto px-9 pt-9 pb-5">
+                    <main className="flex min-w-0 grow basis-0 flex-col overflow-y-auto px-4 pt-6 pb-5 sm:px-9 sm:pt-9">
                         <div className="flex shrink-0 flex-col gap-2">
                             <div className="text-[10.5px] leading-3.5 font-semibold tracking-[0.11em] text-pencil">
                                 {greeting().toUpperCase()}, {firstName}
                             </div>
-                            <h1 className="font-display text-[56px] leading-14 font-extrabold tracking-[-0.035em] text-ink">
+                            <h1 className="font-display text-[40px] leading-11 font-extrabold sm:text-[56px] sm:leading-14 tracking-[-0.035em] text-ink">
                                 {props.heading}
                             </h1>
                             <div className="text-[13.5px] leading-5 text-pencil">{summary}</div>
