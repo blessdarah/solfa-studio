@@ -1,5 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { PrintView } from '@/components/editor/print-view';
 import { Sheet } from '@/components/editor/sheet';
 import { LoopIcon, PrintIcon, RepeatIcon } from '@/components/icons';
@@ -21,7 +22,7 @@ import { play } from '@/lib/player';
 import type { Playback } from '@/lib/player';
 import { audio } from '@/lib/tone';
 import { cn } from '@/lib/utils';
-import type { PublicScoreProps, Voice } from '@/types';
+import type { DohKey, PublicScoreProps, ScoreDocument, Voice } from '@/types';
 
 type Mix = 'everyone' | 'mine' | 'without';
 type Passage = { from: number; to: number };
@@ -73,6 +74,17 @@ function recall(key: string): string | null {
     }
 }
 
+/** What the practice view needs to know about the song, published or not. */
+export type PracticeSong = {
+    /** Remembers "I sing alto" per song in this browser. */
+    key: string;
+    title: string;
+    composer: string | null;
+    arranger: string | null;
+    style: string | null;
+    voices: string[];
+};
+
 /**
  * A published song (Paper W14, W15): read the score, choose your part,
  * play it with the others soft (or alone, or without you), slow it down,
@@ -85,6 +97,101 @@ export default function PublicScore({
     can,
     signed_in,
 }: PublicScoreProps) {
+    const [copied, setCopied] = useState(false);
+    const counted = useRef(false);
+
+    const copyLink = async () => {
+        await navigator.clipboard?.writeText(song.url).catch(() => undefined);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <>
+            <Head title={song.title} />
+
+            <PracticeView
+                song={{
+                    key: song.slug,
+                    title: song.title,
+                    composer: song.composer,
+                    arranger: song.arranger,
+                    style: song.style,
+                    voices: song.voices,
+                }}
+                document={document}
+                doh={doh}
+                can={can}
+                onStart={() => {
+                    if (counted.current) return;
+                    counted.current = true;
+                    void requestJson('POST', `/p/${song.slug}/played`).catch(
+                        () => undefined,
+                    );
+                }}
+                topBar={({ print }) => (
+                    <PublicTopBar signedIn={signed_in}>
+                        <span className="hidden text-[13.5px] leading-4.5 text-pencil lg:block">
+                            Shared by{' '}
+                            <span className="font-semibold text-ink">
+                                {song.owner}
+                            </span>
+                        </span>
+                        {song.is_owner && song.score_id && (
+                            <Link
+                                href={`/scores/${song.score_id}`}
+                                className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex"
+                            >
+                                Edit
+                            </Link>
+                        )}
+                        {can.print && (
+                            <button
+                                type="button"
+                                onClick={print}
+                                className="hidden h-9.5 items-center gap-2 rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex"
+                            >
+                                <PrintIcon size={15} /> Print or PDF
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={copyLink}
+                            className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink md:flex"
+                        >
+                            {copied ? 'Copied' : 'Copy link'}
+                        </button>
+                    </PublicTopBar>
+                )}
+            />
+        </>
+    );
+}
+
+/**
+ * Read and practise a score: the part picker, what you hear, speed, a
+ * repeated passage, the player bar and print. The public song page uses it,
+ * and so does an owner opening their own score on a phone.
+ */
+export function PracticeView({
+    song,
+    document,
+    doh,
+    can,
+    onStart,
+    topBar,
+    notice,
+}: {
+    song: PracticeSong;
+    document: ScoreDocument;
+    doh: DohKey;
+    can: { play: boolean; print: boolean };
+    /** Called each time playback starts (the public page counts the first). */
+    onStart?: () => void;
+    topBar: (tools: { print: () => void }) => ReactNode;
+    /** A line under the top bar, e.g. "Open on a computer or tablet to edit". */
+    notice?: ReactNode;
+}) {
     const voices = useMemo(
         () =>
             document.parts
@@ -101,8 +208,6 @@ export default function PublicScore({
     const [step, setStep] = useState<PlayStep | null>(null);
     const [progress, setProgress] = useState({ at: 0, total: 0 });
     const [printing, setPrinting] = useState(false);
-    const [copied, setCopied] = useState(false);
-    const counted = useRef(false);
     const loop = useRef<Passage | null>(null);
     const timer = useRef<number | null>(null);
     // A repeating passage starts again from the timer, so it reads the latest choices from here.
@@ -114,14 +219,14 @@ export default function PublicScore({
 
     // Remember which part this singer sings, per song.
     useEffect(() => {
-        const saved = recall(`solfa.sing.${song.slug}`) as Voice | null;
+        const saved = recall(`solfa.sing.${song.key}`) as Voice | null;
         if (saved && voices.includes(saved)) setMine(saved);
-    }, [song.slug, voices]);
+    }, [song.key, voices]);
 
     const choose = (voice: Voice) => {
         const next = mine === voice ? null : voice;
         setMine(next);
-        remember(`solfa.sing.${song.slug}`, next);
+        remember(`solfa.sing.${song.key}`, next);
         playback?.mix(levelsFor(voices, next, mix));
     };
 
@@ -158,12 +263,7 @@ export default function PublicScore({
         setPlayback(p);
         setProgress({ at: 0, total: p.endsAt - begin });
 
-        if (!counted.current) {
-            counted.current = true;
-            void requestJson('POST', `/p/${song.slug}/played`).catch(
-                () => undefined,
-            );
-        }
+        onStart?.();
 
         // At the end: go round the passage again, or stop.
         const ms = Math.max(0, (p.endsAt - audio().currentTime) * 1000);
@@ -206,12 +306,6 @@ export default function PublicScore({
         if (playback) start(speed, next);
     };
 
-    const copyLink = async () => {
-        await navigator.clipboard?.writeText(song.url).catch(() => undefined);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 2000);
-    };
-
     const bpm = tempoAt(document.map, 1);
     const playing = playback !== null;
     const barNow = step?.bar ?? null;
@@ -250,41 +344,9 @@ export default function PublicScore({
 
     return (
         <>
-            <Head title={song.title} />
-
             <div className="flex h-dvh flex-col bg-copy">
-                <PublicTopBar signedIn={signed_in}>
-                    <span className="hidden text-[13.5px] leading-4.5 text-pencil lg:block">
-                        Shared by{' '}
-                        <span className="font-semibold text-ink">
-                            {song.owner}
-                        </span>
-                    </span>
-                    {song.is_owner && song.score_id && (
-                        <Link
-                            href={`/scores/${song.score_id}`}
-                            className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex"
-                        >
-                            Edit
-                        </Link>
-                    )}
-                    {can.print && (
-                        <button
-                            type="button"
-                            onClick={() => setPrinting(true)}
-                            className="hidden h-9.5 items-center gap-2 rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink sm:flex"
-                        >
-                            <PrintIcon size={15} /> Print or PDF
-                        </button>
-                    )}
-                    <button
-                        type="button"
-                        onClick={copyLink}
-                        className="hidden h-9.5 items-center rounded-full border border-rule bg-paper px-3.5 text-[13.5px] leading-4.5 font-semibold text-ink hover:border-ink md:flex"
-                    >
-                        {copied ? 'Copied' : 'Copy link'}
-                    </button>
-                </PublicTopBar>
+                {topBar({ print: () => setPrinting(true) })}
+                {notice}
 
                 <div className="flex min-h-0 grow">
                     {/* Practise panel (Paper W14) */}

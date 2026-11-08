@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     LyricsInspector,
@@ -13,10 +13,15 @@ import type { BarToolActions, LyricCursor } from '@/components/editor/sheet';
 import { DeletePartDialog } from '@/components/editor/delete-part-dialog';
 import { PrintView } from '@/components/editor/print-view';
 import { PublishDialog } from '@/components/scores/publish-dialog';
+import { AvatarMenu } from '@/components/avatar-menu';
 import { EditorTopBar } from '@/components/editor/editor-top-bar';
+import { PrintIcon } from '@/components/icons';
+import { Logo } from '@/components/logo';
+import { PracticeView } from '@/pages/public/score';
 import { TempoPopover } from '@/components/editor/tempo-popover';
 import { Toast } from '@/components/toast';
 import { useAutosave, useSavedLabel } from '@/lib/autosave';
+import { PHONE_QUERY, useMediaQuery } from '@/lib/use-media-query';
 import {
     addMark,
     addPart,
@@ -196,6 +201,8 @@ export default function ScoreShow(props: ComposeProps) {
     const [playingStep, setPlayingStep] = useState<PlayStep | null>(null);
     const [heardChoice, setHeardChoice] = useState<Voice[]>(VOICES);
     const scroller = useRef<HTMLDivElement>(null);
+    // Phones get the read-and-play view; writing sol-fa needs a bigger screen.
+    const phone = useMediaQuery(PHONE_QUERY);
 
     const { save, state } = useAutosave(
         score.id,
@@ -701,6 +708,7 @@ export default function ScoreShow(props: ComposeProps) {
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
             if (
+                phone ||
                 isTyping(event.target) ||
                 deletingPart ||
                 printing ||
@@ -925,6 +933,69 @@ export default function ScoreShow(props: ComposeProps) {
     };
 
     const missing = VOICES.filter((v) => !doc.parts.some((p) => p.id === v));
+
+    if (phone) {
+        const withMusic = doc.parts
+            .filter((p) => p.bars.some((b) => b.notes.length > 0))
+            .map((p) => p.id);
+
+        return (
+            <>
+                <Head title={score.title} />
+
+                <PracticeView
+                    song={{
+                        key: `score.${score.id}`,
+                        title: score.title,
+                        composer: score.composer,
+                        arranger: score.arranger,
+                        style: null,
+                        voices:
+                            withMusic.length > 0
+                                ? withMusic
+                                : doc.parts.map((p) => p.id),
+                    }}
+                    document={doc}
+                    doh={doh}
+                    can={{ play: true, print: true }}
+                    topBar={({ print }) => (
+                        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-rule bg-paper px-4">
+                            <Link
+                                href="/dashboard"
+                                className="shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                            >
+                                <Logo compact />
+                            </Link>
+                            <Link
+                                href="/dashboard"
+                                className="text-[14px] leading-4.5 text-pencil hover:text-ink"
+                            >
+                                Library
+                            </Link>
+                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={print}
+                                    aria-label="Print or save PDF"
+                                    className="flex size-9 items-center justify-center rounded-full bg-copy text-ink outline-none hover:bg-rule focus-visible:ring-2 focus-visible:ring-ink/20"
+                                >
+                                    <PrintIcon size={16} />
+                                </button>
+                                <AvatarMenu user={user} size="lg" />
+                            </div>
+                        </header>
+                    )}
+                    notice={
+                        <p className="shrink-0 border-b border-rule bg-wash px-4 py-2.5 text-[12.5px] leading-4 text-ink">
+                            Open on a computer or tablet to edit.
+                        </p>
+                    }
+                />
+
+                <Toast message={toast} onClose={() => setToast(null)} />
+            </>
+        );
+    }
 
     return (
         <>

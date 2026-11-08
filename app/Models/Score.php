@@ -9,6 +9,7 @@ use App\Enums\ShareAccess;
 use App\Exceptions\StaleScoreVersion;
 use App\Music\ScoreDocument;
 use App\Music\SyllableJoin;
+use App\Support\PublicSong;
 use Carbon\CarbonImmutable;
 use Database\Factories\ScoreFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -47,6 +49,8 @@ use Illuminate\Support\Str;
  * @property int|null $published_version the version that was published
  * @property array{title: string, composer: string|null, arranger: string|null, doh: string, document: array<string, mixed>}|null $published
  * @property string|null $search_text
+ * @property string|null $published_style lower case, e.g. "highlife"
+ * @property string|null $published_voices the parts with music: "SATB", "SA", "TB"
  * @property bool $listed shows in public search
  * @property bool $allow_play
  * @property bool $allow_print
@@ -81,6 +85,20 @@ class Score extends Model
     public const SNAPSHOT_EVERY_MINUTES = 10;
 
     /**
+     * Cache key for "Browse by style" on the home page, cleared whenever
+     * what is listed publicly changes.
+     */
+    public const PUBLIC_STYLES_CACHE = 'public.styles';
+
+    /**
+     * The published document, parsed once per model (and again only when
+     * `published` changes).
+     *
+     * @var array{0: string, 1: ScoreDocument}|null
+     */
+    private ?array $parsedPublished = null;
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
@@ -105,6 +123,15 @@ class Score extends Model
                 'note' => 'Created',
             ]);
         });
+
+        // Keep "Browse by style" in step with what is listed publicly.
+        static::saved(function (Score $score) {
+            if ($score->wasChanged(['published_at', 'published', 'listed', 'published_style'])) {
+                Cache::forget(self::PUBLIC_STYLES_CACHE);
+            }
+        });
+        static::deleted(fn () => Cache::forget(self::PUBLIC_STYLES_CACHE));
+        static::restored(fn () => Cache::forget(self::PUBLIC_STYLES_CACHE));
     }
 
     /**
@@ -182,6 +209,8 @@ class Score extends Model
             'document' => $this->document->toArray(),
         ];
         $this->search_text = self::searchTextFor($this->title, $this->composer, $this->arranger, $this->document);
+        $this->published_style = self::styleKey($this->document->style);
+        $this->published_voices = implode('', PublicSong::voices($this->document));
 
         if ($this->status === ScoreStatus::Draft) {
             $this->status = ScoreStatus::Shared;
@@ -196,17 +225,51 @@ class Score extends Model
      */
     public function unpublish(): void
     {
-        $this->forceFill(['published_at' => null, 'published' => null, 'published_version' => null, 'search_text' => null])->save();
+        $this->forceFill([
+            'published_at' => null,
+            'published' => null,
+            'published_version' => null,
+            'search_text' => null,
+            'published_style' => null,
+            'published_voices' => null,
+        ])->save();
     }
 
     /**
-     * The music as published.
+     * The music as published. Parsed once and reused, since a search result
+     * or song card asks for it several times.
      */
     public function publishedDocument(): ?ScoreDocument
     {
+        $raw = $this->getAttributes()['published'] ?? null;
+
+        if (is_string($raw) && $this->parsedPublished !== null && $this->parsedPublished[0] === $raw) {
+            return $this->parsedPublished[1];
+        }
+
         $published = $this->published;
 
-        return isset($published['document']) ? ScoreDocument::fromArray($published['document']) : null;
+        if (! isset($published['document'])) {
+            return null;
+        }
+
+        $document = ScoreDocument::fromArray($published['document']);
+
+        if (is_string($raw)) {
+            $this->parsedPublished = [$raw, $document];
+        }
+
+        return $document;
+    }
+
+    /**
+     * How a style is stored for filtering: "Highlife " → "highlife", "" → null.
+     */
+    public static function styleKey(?string $style): ?string
+    {
+        $key = Str::lower(trim((string) $style));
+
+        return $key === '' ? null : Str::limit($key, 60, '');
     }
 
     /**

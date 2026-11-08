@@ -20,10 +20,19 @@ const STATE_LABEL: Record<VoiceProgress['state'], string> = {
     empty: 'empty',
 };
 
-export function VoiceChips({ voices }: { voices: VoiceProgress[] }) {
+export function VoiceChips({
+    voices,
+    className,
+}: {
+    voices: VoiceProgress[];
+    className?: string;
+}) {
     return (
         <div
-            className="flex w-32 shrink-0 items-center gap-1.75"
+            className={cn(
+                'flex w-32 shrink-0 items-center gap-1.75',
+                className,
+            )}
             aria-label="Voices"
         >
             {voices.map((voice) => (

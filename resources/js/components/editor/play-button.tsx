@@ -63,11 +63,16 @@ export function PlayButton({
                 type="button"
                 onClick={onPlay}
                 disabled={heard.length === 0 && !playing}
+                title={playing ? stopLabel : label}
                 className="flex h-9 items-center gap-2 rounded-l-full pr-3 pl-3.5 text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:text-faint"
             >
                 {playing ? <StopIcon /> : <PlayIcon />}
-                <span className="text-[14px] leading-4.5 font-semibold tabular-nums">
+                {/* Below 1280px just "Play" / "Stop"; the full label stays in the tooltip. */}
+                <span className="hidden text-[14px] leading-4.5 font-semibold tabular-nums xl:inline">
                     {playing ? stopLabel : label}
+                </span>
+                <span className="text-[14px] leading-4.5 font-semibold xl:hidden">
+                    {playing ? 'Stop' : 'Play'}
                 </span>
             </button>
             <div className="h-4.5 w-px bg-rule" />

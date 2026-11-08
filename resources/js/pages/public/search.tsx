@@ -214,6 +214,13 @@ export default function PublicSearch({
                             </Link>
                         ))}
 
+                        {/*
+                         * TODO(human): page navigation. Add `pages` back to the props above;
+                         * it is { current, last, prev, next };
+                         * prev and next are full URLs that keep the q / voices / style filters,
+                         * or null at either end. Render nothing when pages.last === 1.
+                         */}
+
                         {results.length === 0 && (
                             <div className="flex flex-col items-start gap-2 py-10">
                                 <div className="text-[15px] leading-5 font-semibold text-ink">

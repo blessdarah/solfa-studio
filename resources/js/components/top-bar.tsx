@@ -25,17 +25,17 @@ export const TopBar = forwardRef<
     searchRef,
 ) {
     return (
-        <header className="flex h-15 w-full shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
-            <div className="flex items-center gap-5">
+        <header className="flex h-15 w-full shrink-0 items-center justify-between gap-3 border-b border-rule bg-paper px-4 sm:px-5">
+            <div className="flex shrink-0 items-center gap-5">
                 <Link
                     href="/dashboard"
                     className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
                 >
-                    <Logo />
+                    <Logo className="max-sm:[&>span:last-child]:hidden" />
                 </Link>
-                <div className="h-5 w-px shrink-0 bg-rule" />
+                <div className="hidden h-5 w-px shrink-0 bg-rule md:block" />
                 <nav
-                    className="flex items-center gap-2"
+                    className="hidden items-center gap-2 whitespace-nowrap md:flex"
                     aria-label="Breadcrumb"
                 >
                     <Link
@@ -53,8 +53,8 @@ export const TopBar = forwardRef<
                 </nav>
             </div>
 
-            <div className="flex items-center gap-2.5">
-                <label className="flex h-9 w-62.5 shrink-0 items-center gap-2 rounded-full bg-copy px-3 focus-within:ring-2 focus-within:ring-ink/10">
+            <div className="flex min-w-0 items-center gap-2.5">
+                <label className="flex h-9 w-62.5 min-w-0 shrink items-center gap-2 rounded-full bg-copy px-3 focus-within:ring-2 focus-within:ring-ink/10">
                     <SearchIcon className="text-pencil" />
                     <span className="sr-only">Search scores</span>
                     <input
@@ -65,7 +65,7 @@ export const TopBar = forwardRef<
                         autoComplete="off"
                         className="min-w-0 grow bg-transparent text-[13px] leading-4 text-ink outline-none placeholder:text-pencil"
                     />
-                    <kbd className="flex shrink-0 items-center rounded-[4px] bg-paper px-1.25 py-0.5 font-solfa text-[10px] leading-3 text-pencil">
+                    <kbd className="hidden shrink-0 items-center rounded-[4px] bg-paper px-1.25 py-0.5 font-solfa text-[10px] leading-3 text-pencil sm:flex">
                         ⌘K
                     </kbd>
                 </label>
@@ -78,10 +78,11 @@ export const TopBar = forwardRef<
                 <button
                     type="button"
                     onClick={onNewScore}
-                    className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-4 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
+                    aria-label="New score"
+                    className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-2.75 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2 sm:px-4"
                 >
                     <PlusIcon />
-                    <span className="text-[13.5px] leading-4.5 font-semibold">
+                    <span className="hidden text-[13.5px] leading-4.5 font-semibold whitespace-nowrap sm:inline">
                         New score
                     </span>
                 </button>

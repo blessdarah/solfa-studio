@@ -41,7 +41,7 @@ function Chips({
     kinds: DashboardProps['kinds'];
 }) {
     return (
-        <div className="flex items-center gap-1.5">
+        <div className="-mx-4 flex min-w-0 [scrollbar-width:none] items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
             {KIND_CHIPS.map((chip) => {
                 const active = filters.kind === chip.kind;
 
@@ -91,7 +91,7 @@ function Chips({
 
 function SortMenu({ filters }: { filters: DashboardFilters }) {
     return (
-        <label className="relative flex shrink-0 items-center gap-1.75">
+        <label className="relative flex shrink-0 items-center gap-1.75 self-start sm:self-auto">
             <FilterIcon className="text-pencil" />
             <span className="text-[12.5px] leading-4 font-medium text-ink">
                 {SORTS.find((s) => s.value === filters.sort)?.label}
@@ -397,13 +397,13 @@ function Row({
                 event.dataTransfer.setData(SCORE_DRAG_TYPE, score.id);
                 event.dataTransfer.effectAllowed = 'move';
             }}
-            className="group flex h-15.5 shrink-0 items-center gap-4 border-b border-rule hover:bg-copy/40 has-[[aria-expanded=true]]:bg-copy/60"
+            className="group flex min-h-15.5 shrink-0 items-center gap-3 border-b border-rule hover:bg-copy/40 has-[[aria-expanded=true]]:bg-copy/60 sm:h-15.5 sm:gap-4"
         >
             <Link
                 href={`/scores/${score.id}`}
-                className="flex h-full min-w-0 grow basis-0 items-center gap-4 outline-none focus-visible:bg-copy/60"
+                className="flex min-w-0 grow basis-0 items-center gap-3 self-stretch py-3 outline-none focus-visible:bg-copy/60 sm:gap-4 sm:py-0"
             >
-                <span className="w-10 shrink-0">
+                <span className="w-10 shrink-0 self-start sm:self-center">
                     <KeyBadge doh={score.doh} alert={score.needs_review} />
                 </span>
                 <span className="flex min-w-0 grow basis-0 flex-col gap-0.5">
@@ -411,14 +411,30 @@ function Row({
                         <span className="truncate font-display text-[15px] leading-4.75 font-semibold tracking-[-0.01em] text-ink">
                             {score.title}
                         </span>
-                        <StatusPill score={score} />
+                        <span className="hidden sm:contents">
+                            <StatusPill score={score} />
+                        </span>
                     </span>
                     <span className="truncate text-[12.5px] leading-4 text-pencil">
                         {score.meta}
                     </span>
+                    {/* Phones: voices, status and last edited on a line of their own. */}
+                    <span className="flex min-w-0 items-center gap-2.5 pt-1.5 sm:hidden">
+                        <VoiceChips
+                            voices={score.voice_progress}
+                            className="w-auto gap-1"
+                        />
+                        <StatusPill score={score} />
+                        <span className="truncate text-[12px] leading-4 text-pencil">
+                            {score.updated_human}
+                        </span>
+                    </span>
                 </span>
-                <VoiceChips voices={score.voice_progress} />
-                <span className="flex w-20 shrink-0 justify-end text-right text-[12px] leading-4 text-pencil">
+                <VoiceChips
+                    voices={score.voice_progress}
+                    className="max-sm:hidden"
+                />
+                <span className="hidden w-20 shrink-0 justify-end text-right text-[12px] leading-4 text-pencil sm:flex">
                     {score.updated_human}
                 </span>
             </Link>
@@ -434,7 +450,7 @@ function DeletedRow({ score }: { score: ScoreSummary }) {
     const [sure, setSure] = useState(false);
 
     return (
-        <div className="flex h-15.5 shrink-0 items-center gap-4 border-b border-rule">
+        <div className="flex min-h-15.5 shrink-0 flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-rule py-3 sm:h-15.5 sm:flex-nowrap sm:py-0">
             <span className="w-10 shrink-0 opacity-60">
                 <KeyBadge doh={score.doh} alert={false} />
             </span>
@@ -449,33 +465,35 @@ function DeletedRow({ score }: { score: ScoreSummary }) {
                     · {score.meta}
                 </span>
             </span>
-            <button
-                type="button"
-                onClick={() =>
-                    router.post(
-                        `/scores/${score.id}/restore`,
-                        {},
-                        { preserveScroll: true },
-                    )
-                }
-                className="flex h-8 shrink-0 items-center rounded-full bg-ink px-3.5 text-[12.5px] leading-4 font-semibold text-paper hover:bg-ink/90"
-            >
-                Restore
-            </button>
-            <button
-                type="button"
-                onClick={() =>
-                    sure
-                        ? router.delete(`/scores/${score.id}/forever`, {
-                              preserveScroll: true,
-                          })
-                        : setSure(true)
-                }
-                onBlur={() => setSure(false)}
-                className="flex h-8 shrink-0 items-center rounded-full border border-rule px-3.5 text-[12.5px] leading-4 font-semibold text-danger hover:bg-danger/6"
-            >
-                {sure ? 'Click again — no undo' : 'Delete forever'}
-            </button>
+            <span className="flex shrink-0 gap-2 max-sm:w-full max-sm:pl-14 sm:gap-4">
+                <button
+                    type="button"
+                    onClick={() =>
+                        router.post(
+                            `/scores/${score.id}/restore`,
+                            {},
+                            { preserveScroll: true },
+                        )
+                    }
+                    className="flex h-8 shrink-0 items-center rounded-full bg-ink px-3.5 text-[12.5px] leading-4 font-semibold text-paper hover:bg-ink/90"
+                >
+                    Restore
+                </button>
+                <button
+                    type="button"
+                    onClick={() =>
+                        sure
+                            ? router.delete(`/scores/${score.id}/forever`, {
+                                  preserveScroll: true,
+                              })
+                            : setSure(true)
+                    }
+                    onBlur={() => setSure(false)}
+                    className="flex h-8 shrink-0 items-center rounded-full border border-rule px-3.5 text-[12.5px] leading-4 font-semibold text-danger hover:bg-danger/6"
+                >
+                    {sure ? 'Click again — no undo' : 'Delete forever'}
+                </button>
+            </span>
         </div>
     );
 }
@@ -502,13 +520,13 @@ export function ScoreLedger({
 
     return (
         <>
-            <div className="flex shrink-0 items-center justify-between pt-7">
+            <div className="flex shrink-0 flex-col-reverse items-stretch gap-3 pt-6 pb-2 sm:flex-row sm:items-center sm:justify-between sm:pt-7 sm:pb-0">
                 <Chips filters={filters} kinds={kinds} />
                 <SortMenu filters={filters} />
             </div>
 
             <div
-                className="flex h-8.5 shrink-0 items-center gap-4 border-b border-rule pt-3"
+                className="hidden h-8.5 shrink-0 items-center gap-4 border-b border-rule pt-3 sm:flex"
                 aria-hidden="true"
             >
                 <div className="w-10 shrink-0 text-[10px] leading-3.5 font-semibold tracking-[0.12em] text-pencil">

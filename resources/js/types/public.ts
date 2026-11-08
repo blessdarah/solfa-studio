@@ -41,6 +41,13 @@ export type PublicHomeProps = {
 export type PublicSearchProps = {
     results: (SongCard & { match: SearchMatch | null })[];
     total: number;
+    /** Which page of results this is, with links to the pages either side (null at the ends). */
+    pages: {
+        current: number;
+        last: number;
+        prev: string | null;
+        next: string | null;
+    };
     styles: StyleCount[];
     filters: { q: string; voices: 'any' | 'SATB' | 'SA' | 'TB'; style: string };
     signed_in: boolean;
