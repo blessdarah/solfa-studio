@@ -11,7 +11,7 @@ import { partOf } from '@/lib/music';
 import { slotKey, slurStarts } from '@/lib/slurs';
 import type { ScoreDocument, SyllableJoin, Voice } from '@/types/score';
 
-const VOWELS = new Set([...'aeiouàáâäèéêëìíîïòóôöùúûüɛɔ']);
+const VOWELS = new Set('aeiouàáâäèéêëìíîïòóôöùúûüɛɔ');
 
 /** Consonant pairs that sound as one ("father", "mighty") and stay together. */
 const DIGRAPHS = ['ch', 'sh', 'th', 'ph', 'wh', 'gh', 'ck', 'ng', 'qu'];

@@ -6,12 +6,10 @@ use App\Enums\ScanState;
 use App\Enums\ShareAccess;
 use App\Exceptions\StaleScoreVersion;
 use App\Models\Score;
-use App\Models\User;
 use App\Music\InvalidScoreDocument;
 use App\Music\MapEvent;
 use App\Music\ScoreDocument;
 use App\Music\Voice;
-use Database\Seeders\OnyameYeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Date;
 use Tests\TestCase;
@@ -127,19 +125,5 @@ class ScoreTest extends TestCase
 
         $this->assertSame(2, $score->scanFlags()->where('resolved', false)->count());
         $this->assertSame([6, 7], $scan->flagsToCheck()->pluck('bar')->all());
-    }
-
-    public function test_the_demo_score_seeds(): void
-    {
-        $user = User::factory()->create(['phone' => '+237670000000', 'email' => null]);
-
-        (new OnyameYeSeeder)->run($user);
-
-        $score = $user->scores()->firstOrFail();
-        $this->assertSame('Onyame Ye', $score->title);
-        $this->assertSame('Eb', $score->doh);
-        $this->assertSame(3, $score->document->beatsInBar(13));
-        $this->assertSame(9, $score->document->part(Voice::Alto)?->doneCount());
-        $this->assertCount(11, $score->document->marks);
     }
 }

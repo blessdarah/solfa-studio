@@ -160,15 +160,14 @@ final class ScoreSummary
             return [];
         }
 
-        return collect($busiest->bars)
+        return array_values(collect($busiest->bars)
             ->filter(fn (Bar $bar) => $bar->notes !== [])
             ->take($bars)
             ->map(fn (Bar $bar) => [
                 'beats' => $document->beatsInBar($bar->no),
                 'notes' => array_map(fn (Note $note) => $note->toArray(), $bar->notes),
             ])
-            ->values()
-            ->all();
+            ->all());
     }
 
     public static function human(?CarbonInterface $date): string

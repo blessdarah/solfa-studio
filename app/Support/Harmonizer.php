@@ -123,14 +123,14 @@ class Harmonizer
             }
 
             // Throws if anything doesn't fit the bars.
-            $document->withPart(new Part($part->id, $part->name, $bars));
+            $document->withPart(new Part($part->id, $part->name, array_values($bars)));
         } catch (InvalidScoreDocument) {
             return null;
         }
 
-        return array_values(array_map(
+        return array_map(
             fn (Bar $bar) => $bar->toArray(),
             array_slice($bars, $from - 1, $to - $from + 1),
-        ));
+        );
     }
 }

@@ -55,7 +55,6 @@ function MatchLine({ match }: { match: SearchMatch | null }) {
 export default function PublicSearch({
     results,
     total,
-    pages,
     styles,
     filters,
     signed_in,
@@ -216,7 +215,8 @@ export default function PublicSearch({
                         ))}
 
                         {/*
-                         * TODO(human): page navigation. `pages` is { current, last, prev, next };
+                         * TODO(human): page navigation. Add `pages` back to the props above;
+                         * it is { current, last, prev, next };
                          * prev and next are full URLs that keep the q / voices / style filters,
                          * or null at either end. Render nothing when pages.last === 1.
                          */}

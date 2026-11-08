@@ -189,7 +189,7 @@ class Score extends Model
             || ($published['title'] ?? null) !== $this->title
             || ($published['composer'] ?? null) !== $this->composer
             || ($published['arranger'] ?? null) !== $this->arranger
-            || ($published['doh'] ?? null) !== $this->doh;
+            || $published['doh'] !== $this->doh;
     }
 
     /**

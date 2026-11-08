@@ -317,7 +317,7 @@ export type ParsedLine = { actions: TypingAction[] } | { error: string };
  */
 export function parseLine(text: string): ParsedLine {
     const actions: TypingAction[] = [];
-    const chars = [...text];
+    const chars = Array.from(text);
     // Inside ( ): each note after the first is slurred on from the one before.
     let slur: 'off' | 'opening' | 'on' = 'off';
     const note = (action: TypingAction) => {

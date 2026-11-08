@@ -272,7 +272,7 @@ function pieces(
         const isLast = i === tokens.length - 1;
         const width =
             half !== null && i + 1 === half ? Math.max(padTo, 3) : padTo;
-        const length = [...token].length;
+        const length = Array.from(token).length;
 
         return {
             sep,
@@ -376,7 +376,7 @@ export function barSegments(
 
         const length = out
             .slice(startOfBeat)
-            .reduce((n, seg) => n + [...seg.text].length, 0);
+            .reduce((n, seg) => n + Array.from(seg.text).length, 0);
         const isLast = beat === beats - 1;
         const width = half !== null && beat + 1 === half ? 3 : 2;
 
@@ -695,7 +695,9 @@ export function barWidth(
     const notes = Math.max(
         0,
         ...document.parts.map(
-            (p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length,
+            (p) =>
+                Array.from(formatBar(p.bars[barNo - 1]?.notes ?? [], beats))
+                    .length,
         ),
     );
     // Words sit under their notes; the bar must reach the end of the last one.
@@ -801,7 +803,7 @@ export function wordWidth(text: string): number {
 
     return measurer
         ? measurer.measureText(text).width
-        : [...text].length * WORD_CHAR;
+        : Array.from(text).length * WORD_CHAR;
 }
 
 export type PlacedSyllable = {
@@ -831,7 +833,7 @@ export function placeSyllables(
     for (const piece of barSegments(notes, beats)) {
         if (piece.kind === 'slot' && piece.text !== '')
             columns.push({ at: piece.at, col });
-        col += [...piece.text].length;
+        col += Array.from(piece.text).length;
     }
 
     const placed: PlacedSyllable[] = [];

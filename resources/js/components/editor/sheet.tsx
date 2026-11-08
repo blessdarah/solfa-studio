@@ -374,7 +374,9 @@ export function solfaSize(
     const longest = Math.max(
         0,
         ...document.parts.map(
-            (p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length,
+            (p) =>
+                Array.from(formatBar(p.bars[barNo - 1]?.notes ?? [], beats))
+                    .length,
         ),
     );
     const room = width - PAD - chip; // the bar, its left padding, the cursor chip
