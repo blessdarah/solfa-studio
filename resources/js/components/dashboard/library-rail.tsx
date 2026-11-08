@@ -15,13 +15,21 @@ import {
 import { dashboardUrl } from '@/lib/dashboard-url';
 import { useDismiss } from '@/lib/use-dismiss';
 import { cn } from '@/lib/utils';
-import type { CollectionItem, DashboardFilters, DashboardProps, User, Workspace } from '@/types';
+import type {
+    CollectionItem,
+    DashboardFilters,
+    DashboardProps,
+    User,
+    Workspace,
+} from '@/types';
 
 export const SCORE_DRAG_TYPE = 'application/x-solfa-score';
 
 /** The score id being dragged, if the drag carries one. */
 function draggedScore(event: DragEvent): string | null {
-    return event.dataTransfer.types.includes(SCORE_DRAG_TYPE) ? event.dataTransfer.getData(SCORE_DRAG_TYPE) : null;
+    return event.dataTransfer.types.includes(SCORE_DRAG_TYPE)
+        ? event.dataTransfer.getData(SCORE_DRAG_TYPE)
+        : null;
 }
 
 /**
@@ -48,7 +56,10 @@ function DropRow({
             href={href}
             aria-current={active ? 'page' : undefined}
             onDragOver={(event) => {
-                if (onDropScore && event.dataTransfer.types.includes(SCORE_DRAG_TYPE)) {
+                if (
+                    onDropScore &&
+                    event.dataTransfer.types.includes(SCORE_DRAG_TYPE)
+                ) {
                     event.preventDefault();
                     setOver(true);
                 }
@@ -75,7 +86,13 @@ function DropRow({
     );
 }
 
-function WorkspaceMenu({ workspace, user }: { workspace: Workspace; user: User }) {
+function WorkspaceMenu({
+    workspace,
+    user,
+}: {
+    workspace: Workspace;
+    user: User;
+}) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -95,7 +112,9 @@ function WorkspaceMenu({ workspace, user }: { workspace: Workspace; user: User }
                     </span>
                 </span>
                 <span className="flex min-w-0 grow basis-0 flex-col gap-px">
-                    <span className="truncate text-[13px] leading-4.25 font-semibold text-ink">{workspace.name}</span>
+                    <span className="truncate text-[13px] leading-4.25 font-semibold text-ink">
+                        {workspace.name}
+                    </span>
                     <span className="truncate text-[11.5px] leading-3.75 text-pencil">
                         {workspace.role} · {workspace.plan}
                     </span>
@@ -106,7 +125,9 @@ function WorkspaceMenu({ workspace, user }: { workspace: Workspace; user: User }
             {open && (
                 <div className="absolute top-[calc(100%+6px)] right-0 left-0 z-50 rounded-md border border-rule bg-paper p-1.5 shadow-[0_20px_50px_#00000024]">
                     <div className="px-2.5 py-2">
-                        <p className="truncate text-[13px] leading-4.25 font-semibold text-ink">{user.name}</p>
+                        <p className="truncate text-[13px] leading-4.25 font-semibold text-ink">
+                            {user.name}
+                        </p>
                         <p className="mt-px truncate text-[11.5px] leading-3.75 text-pencil">
                             {user.email ?? user.phone ?? ''}
                         </p>
@@ -139,7 +160,10 @@ function NewCollection({ onDone }: { onDone: () => void }) {
         <form
             onSubmit={(event) => {
                 event.preventDefault();
-                form.post('/collections', { preserveScroll: true, onSuccess: () => onDone() });
+                form.post('/collections', {
+                    preserveScroll: true,
+                    onSuccess: () => onDone(),
+                });
             }}
             className="flex h-8 shrink-0 items-center gap-2.5 rounded-[8px] px-2.5"
         >
@@ -184,12 +208,18 @@ export function LibraryRail({
 
     const restore = (scoreId: string) => {
         if (filters.view === 'archive') {
-            router.delete(`/scores/${scoreId}/archive`, { preserveScroll: true, preserveState: true });
-        } else if (filters.view === 'collection' && filters.collection) {
-            router.delete(`/collections/${filters.collection}/scores/${scoreId}`, {
+            router.delete(`/scores/${scoreId}/archive`, {
                 preserveScroll: true,
                 preserveState: true,
             });
+        } else if (filters.view === 'collection' && filters.collection) {
+            router.delete(
+                `/collections/${filters.collection}/scores/${scoreId}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                },
+            );
         }
     };
 
@@ -199,21 +229,43 @@ export function LibraryRail({
             label: 'All scores',
             icon: LayersIcon,
             count: nav.all,
-            drop: filters.view === 'archive' || filters.view === 'collection' ? restore : undefined,
+            drop:
+                filters.view === 'archive' || filters.view === 'collection'
+                    ? restore
+                    : undefined,
         },
-        { view: 'review' as const, label: 'Needs review', icon: CheckCircleIcon, count: nav.review, badge: true },
-        { view: 'shared' as const, label: 'Shared with me', icon: UsersIcon, count: nav.shared },
+        {
+            view: 'review' as const,
+            label: 'Needs review',
+            icon: CheckCircleIcon,
+            count: nav.review,
+            badge: true,
+        },
+        {
+            view: 'shared' as const,
+            label: 'Shared with me',
+            icon: UsersIcon,
+            count: nav.shared,
+        },
         {
             view: 'archive' as const,
             label: 'Archive',
             icon: ArchiveIcon,
             count: nav.archive,
-            drop: filters.view !== 'archive' && filters.view !== 'shared'
-                ? (id: string) => post(`/scores/${id}/archive`)
-                : undefined,
+            drop:
+                filters.view !== 'archive' && filters.view !== 'shared'
+                    ? (id: string) => post(`/scores/${id}/archive`)
+                    : undefined,
         },
         ...(nav.deleted > 0 || filters.view === 'deleted'
-            ? [{ view: 'deleted' as const, label: 'Recently deleted', icon: TrashIcon, count: nav.deleted }]
+            ? [
+                  {
+                      view: 'deleted' as const,
+                      label: 'Recently deleted',
+                      icon: TrashIcon,
+                      count: nav.deleted,
+                  },
+              ]
             : []),
     ];
 
@@ -221,7 +273,10 @@ export function LibraryRail({
         <aside className="flex w-62 shrink-0 flex-col border-r border-rule bg-paper px-4 pt-5 pb-4">
             <WorkspaceMenu workspace={workspace} user={user} />
 
-            <nav className="flex shrink-0 flex-col gap-0.5 pt-6" aria-label="Library">
+            <nav
+                className="flex shrink-0 flex-col gap-0.5 pt-6"
+                aria-label="Library"
+            >
                 {items.map((item) => {
                     const active = filters.view === item.view;
                     const Icon = item.icon;
@@ -234,7 +289,9 @@ export function LibraryRail({
                             onDropScore={item.drop}
                             className="h-9"
                         >
-                            <Icon className={active ? 'text-ink' : 'text-pencil'} />
+                            <Icon
+                                className={active ? 'text-ink' : 'text-pencil'}
+                            />
                             <span
                                 className={cn(
                                     'grow basis-0 truncate text-[13.5px] leading-4.5 text-ink',
@@ -248,7 +305,9 @@ export function LibraryRail({
                                     {item.count}
                                 </span>
                             ) : (
-                                <span className="shrink-0 font-solfa text-[11px] leading-3.5 text-pencil">{item.count}</span>
+                                <span className="shrink-0 font-solfa text-[11px] leading-3.5 text-pencil">
+                                    {item.count}
+                                </span>
                             )}
                         </DropRow>
                     );
@@ -257,7 +316,9 @@ export function LibraryRail({
 
             <div className="flex shrink-0 flex-col gap-px pt-7">
                 <div className="flex h-6 shrink-0 items-center justify-between px-2.5">
-                    <span className="text-[10.5px] leading-3.5 font-semibold tracking-[0.1em] text-pencil">COLLECTIONS</span>
+                    <span className="text-[10.5px] leading-3.5 font-semibold tracking-[0.1em] text-pencil">
+                        COLLECTIONS
+                    </span>
                     <button
                         type="button"
                         onClick={() => setAdding(true)}
@@ -271,16 +332,36 @@ export function LibraryRail({
                 {collections.map((collection) => (
                     <DropRow
                         key={collection.id}
-                        href={dashboardUrl({ ...keep, view: 'collection', collection: collection.id })}
-                        active={filters.view === 'collection' && filters.collection === collection.id}
-                        onDropScore={(id) => post(`/collections/${collection.id}/scores`, { score_id: id })}
+                        href={dashboardUrl({
+                            ...keep,
+                            view: 'collection',
+                            collection: collection.id,
+                        })}
+                        active={
+                            filters.view === 'collection' &&
+                            filters.collection === collection.id
+                        }
+                        onDropScore={(id) =>
+                            post(`/collections/${collection.id}/scores`, {
+                                score_id: id,
+                            })
+                        }
                         className="h-8"
                     >
                         <span className="flex size-4 shrink-0 items-center justify-center">
-                            <span className={cn('size-1.5 shrink-0 rounded-[2px]', SQUARE[collection.color])} />
+                            <span
+                                className={cn(
+                                    'size-1.5 shrink-0 rounded-[2px]',
+                                    SQUARE[collection.color],
+                                )}
+                            />
                         </span>
-                        <span className="grow basis-0 truncate text-[13px] leading-4.25 text-ink">{collection.name}</span>
-                        <span className="shrink-0 font-solfa text-[11px] leading-3.5 text-pencil">{collection.count}</span>
+                        <span className="grow basis-0 truncate text-[13px] leading-4.25 text-ink">
+                            {collection.name}
+                        </span>
+                        <span className="shrink-0 font-solfa text-[11px] leading-3.5 text-pencil">
+                            {collection.count}
+                        </span>
                     </DropRow>
                 ))}
 
@@ -290,7 +371,10 @@ export function LibraryRail({
             <div className="min-h-4 grow basis-0" />
 
             <div className="flex shrink-0 flex-col gap-3.5 px-1">
-                <div className="font-solfa text-[10px] leading-3.5 tracking-[0.24em] text-faint" aria-hidden="true">
+                <div
+                    className="font-solfa text-[10px] leading-3.5 tracking-[0.24em] text-faint"
+                    aria-hidden="true"
+                >
                     d r m f s l t
                 </div>
                 <button
@@ -299,7 +383,9 @@ export function LibraryRail({
                     className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-marker text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
                 >
                     <ScanIcon />
-                    <span className="text-[13.5px] leading-4.5 font-semibold">Scan a score</span>
+                    <span className="text-[13.5px] leading-4.5 font-semibold">
+                        Scan a score
+                    </span>
                 </button>
             </div>
         </aside>

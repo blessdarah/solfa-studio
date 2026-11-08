@@ -46,7 +46,11 @@ export function PlayHead({
 
         const tick = () => {
             const now = audio().currentTime;
-            const current = playback.timeline.find((t) => now >= t.at && now < t.end) ?? (now < (playback.timeline[0]?.at ?? 0) ? playback.timeline[0] : undefined);
+            const current =
+                playback.timeline.find((t) => now >= t.at && now < t.end) ??
+                (now < (playback.timeline[0]?.at ?? 0)
+                    ? playback.timeline[0]
+                    : undefined);
 
             const next = current ?? null;
 
@@ -61,7 +65,8 @@ export function PlayHead({
                     const end = current.beats[i + 1] ?? current.end;
                     const el = fills.current[i];
 
-                    if (el) el.style.width = `${Math.max(0, Math.min(1, (now - start) / (end - start))) * 100}%`;
+                    if (el)
+                        el.style.width = `${Math.max(0, Math.min(1, (now - start) / (end - start))) * 100}%`;
                 });
             }
 
@@ -84,7 +89,9 @@ export function PlayHead({
         }
 
         // The bar's number cell gives its column (bars vary in width); its line gives the height.
-        const cell = root.current.querySelector<HTMLElement>(`[data-bar="${bar}"]`);
+        const cell = root.current.querySelector<HTMLElement>(
+            `[data-bar="${bar}"]`,
+        );
         const system = cell?.closest<HTMLElement>('[data-system]');
 
         if (!cell || !system) {
@@ -102,7 +109,10 @@ export function PlayHead({
     }, [bar, root]);
 
     useEffect(() => {
-        overlay.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        overlay.current?.scrollIntoView({
+            block: 'nearest',
+            behavior: 'smooth',
+        });
     }, [box?.top]);
 
     if (!step || !box || !playback) return null;
@@ -115,11 +125,19 @@ export function PlayHead({
                 ref={overlay}
                 aria-hidden="true"
                 className="pointer-events-none absolute z-20 rounded-[3px] bg-marker/25 mix-blend-multiply outline-2 outline-ink outline-solid"
-                style={{ left: box.left, top: box.top - 4, width: box.width, height: box.height + 16 }}
+                style={{
+                    left: box.left,
+                    top: box.top - 4,
+                    width: box.width,
+                    height: box.height + 16,
+                }}
             >
                 <div className="absolute inset-x-2 bottom-1.5 flex gap-1">
                     {Array.from({ length: beats }, (_, i) => (
-                        <span key={`${step.at}-${i}`} className="relative h-0.75 grow overflow-hidden rounded-full bg-ink/15">
+                        <span
+                            key={`${step.at}-${i}`}
+                            className="relative h-0.75 grow overflow-hidden rounded-full bg-ink/15"
+                        >
                             <span
                                 ref={(el) => {
                                     fills.current[i] = el;
@@ -134,7 +152,10 @@ export function PlayHead({
                 <div
                     aria-hidden="true"
                     className="pointer-events-none absolute z-20 flex h-4.5 items-center rounded-[4px] bg-ink px-1.5 text-[10.5px] leading-3 font-semibold text-paper"
-                    style={{ left: box.left + box.width - 40, top: box.top - 13 }}
+                    style={{
+                        left: box.left + box.width - 40,
+                        top: box.top - 13,
+                    }}
                 >
                     D.S.
                 </div>

@@ -45,13 +45,20 @@ export function PlayButton({
     useDismiss(ref, open, close);
 
     const toggle = (voice: Voice) =>
-        onHeard(heard.includes(voice) ? heard.filter((v) => v !== voice) : parts.filter((v) => v === voice || heard.includes(v)));
+        onHeard(
+            heard.includes(voice)
+                ? heard.filter((v) => v !== voice)
+                : parts.filter((v) => v === voice || heard.includes(v)),
+        );
 
     const all = parts.every((v) => heard.includes(v));
     const only = (voice: Voice) => heard.length === 1 && heard[0] === voice;
 
     return (
-        <div ref={ref} className="relative flex h-9 items-center rounded-full bg-copy">
+        <div
+            ref={ref}
+            className="relative flex h-9 items-center rounded-full bg-copy"
+        >
             <button
                 type="button"
                 onClick={onPlay}
@@ -59,7 +66,9 @@ export function PlayButton({
                 className="flex h-9 items-center gap-2 rounded-l-full pr-3 pl-3.5 text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/20 disabled:text-faint"
             >
                 {playing ? <StopIcon /> : <PlayIcon />}
-                <span className="text-[14px] leading-4.5 font-semibold tabular-nums">{playing ? stopLabel : label}</span>
+                <span className="text-[14px] leading-4.5 font-semibold tabular-nums">
+                    {playing ? stopLabel : label}
+                </span>
             </button>
             <div className="h-4.5 w-px bg-rule" />
             <button
@@ -70,7 +79,9 @@ export function PlayButton({
                 aria-label="Choose parts to hear"
                 className="flex h-9 items-center gap-1 rounded-r-full pr-3 pl-2.5 text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
             >
-                <span className="font-display text-[13px] leading-4 font-bold">{heardLabel(parts, heard)}</span>
+                <span className="font-display text-[13px] leading-4 font-bold">
+                    {heardLabel(parts, heard)}
+                </span>
                 <ChevronDownIcon size={13} className="text-pencil" />
             </button>
 
@@ -87,7 +98,10 @@ export function PlayButton({
                         const on = heard.includes(voice);
 
                         return (
-                            <div key={voice} className="flex items-center rounded-[8px] hover:bg-copy">
+                            <div
+                                key={voice}
+                                className="flex items-center rounded-[8px] hover:bg-copy"
+                            >
                                 <button
                                     type="button"
                                     role="menuitemcheckbox"
@@ -98,12 +112,19 @@ export function PlayButton({
                                     <span
                                         className={cn(
                                             'flex size-6 items-center justify-center rounded-[6px] font-display text-[12px] leading-4 font-extrabold',
-                                            on ? 'bg-ink text-paper' : 'border border-rule text-faint',
+                                            on
+                                                ? 'bg-ink text-paper'
+                                                : 'border border-rule text-faint',
                                         )}
                                     >
                                         {voice}
                                     </span>
-                                    <span className={cn('text-[13.5px] leading-4.5 font-medium', on ? 'text-ink' : 'text-pencil')}>
+                                    <span
+                                        className={cn(
+                                            'text-[13.5px] leading-4.5 font-medium',
+                                            on ? 'text-ink' : 'text-pencil',
+                                        )}
+                                    >
                                         {VOICE_NAMES[voice]}
                                     </span>
                                 </button>

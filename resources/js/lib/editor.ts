@@ -30,18 +30,32 @@ function sortNotes(notes: Note[]): Note[] {
     return [...notes].sort((a, b) => a.start - b.start);
 }
 
-function withBar(document: ScoreDocument, voice: Voice, barNo: number, change: (bar: Bar) => Bar): ScoreDocument {
+function withBar(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+    change: (bar: Bar) => Bar,
+): ScoreDocument {
     return {
         ...document,
         parts: document.parts.map((part) =>
             part.id !== voice
                 ? part
-                : { ...part, bars: part.bars.map((bar) => (bar.no === barNo ? change(bar) : bar)) },
+                : {
+                      ...part,
+                      bars: part.bars.map((bar) =>
+                          bar.no === barNo ? change(bar) : bar,
+                      ),
+                  },
         ),
     };
 }
 
-function barOf(document: ScoreDocument, voice: Voice, barNo: number): Bar | undefined {
+function barOf(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+): Bar | undefined {
     return partOf(document, voice)?.bars[barNo - 1];
 }
 
@@ -57,7 +71,9 @@ export function noteEndingAt(notes: Note[], beat: number): Note | undefined {
 
 /** The note sounding at `beat`, whether it starts there or is held over it. */
 export function noteCovering(notes: Note[], beat: number): Note | undefined {
-    return notes.find((n) => n.start <= beat + EPS && n.start + n.length > beat + EPS);
+    return notes.find(
+        (n) => n.start <= beat + EPS && n.start + n.length > beat + EPS,
+    );
 }
 
 /** Where the next note (or the bar line) is after `beat`. */
@@ -73,7 +89,12 @@ function nextBoundary(notes: Note[], beat: number, beats: number): number {
  * Type a pitch at the cursor. Replaces a note starting there; cuts a held
  * note short; otherwise the new note lasts to the next beat.
  */
-export function setNote(document: ScoreDocument, cursor: Cursor, pitch: Pitch, octave: Octave): ScoreDocument {
+export function setNote(
+    document: ScoreDocument,
+    cursor: Cursor,
+    pitch: Pitch,
+    octave: Octave,
+): ScoreDocument {
     const beats = beatsInBar(document.map, cursor.bar);
 
     return withBar(document, cursor.part, cursor.bar, (bar) => {
@@ -82,37 +103,54 @@ export function setNote(document: ScoreDocument, cursor: Cursor, pitch: Pitch, o
         if (existing) {
             return {
                 ...bar,
-                notes: bar.notes.map((n) => (n === existing ? { ...n, pitch, octave, source: 'typed', tie: false } : n)),
+                notes: bar.notes.map((n) =>
+                    n === existing
+                        ? { ...n, pitch, octave, source: 'typed', tie: false }
+                        : n,
+                ),
                 tacet: false,
             };
         }
 
         const notes = bar.notes.map((n) =>
-            n.start < cursor.beat - EPS && n.start + n.length > cursor.beat + EPS
+            n.start < cursor.beat - EPS &&
+            n.start + n.length > cursor.beat + EPS
                 ? { ...n, length: cursor.beat - n.start }
                 : n,
         );
 
         // Inside a triplet a note lasts one third (f,f,f); otherwise to the next beat.
-        const toNextBeat = onThird(cursor.beat) ? nextThird(cursor.beat) - cursor.beat : Math.floor(cursor.beat + EPS) + 1 - cursor.beat;
-        const length = Math.min(toNextBeat, nextBoundary(notes, cursor.beat, beats) - cursor.beat);
+        const toNextBeat = onThird(cursor.beat)
+            ? nextThird(cursor.beat) - cursor.beat
+            : Math.floor(cursor.beat + EPS) + 1 - cursor.beat;
+        const length = Math.min(
+            toNextBeat,
+            nextBoundary(notes, cursor.beat, beats) - cursor.beat,
+        );
 
         return {
             ...bar,
-            notes: sortNotes([...notes, { pitch, octave, start: cursor.beat, length, source: 'typed' }]),
+            notes: sortNotes([
+                ...notes,
+                { pitch, octave, start: cursor.beat, length, source: 'typed' },
+            ]),
             tacet: false,
         };
     });
 }
 
 /** Silence at the cursor ("Rest"): the note there goes, a held note stops. */
-export function clearAt(document: ScoreDocument, cursor: Cursor): ScoreDocument {
+export function clearAt(
+    document: ScoreDocument,
+    cursor: Cursor,
+): ScoreDocument {
     return withBar(document, cursor.part, cursor.bar, (bar) => ({
         ...bar,
         notes: bar.notes
             .filter((n) => Math.abs(n.start - cursor.beat) > EPS)
             .map((n) =>
-                n.start < cursor.beat - EPS && n.start + n.length > cursor.beat + EPS
+                n.start < cursor.beat - EPS &&
+                n.start + n.length > cursor.beat + EPS
                     ? { ...n, length: cursor.beat - n.start }
                     : n,
             ),
@@ -128,17 +166,42 @@ export function hold(document: ScoreDocument, cursor: Cursor): ScoreDocument {
 
     // At the start of a bar, "–" carries the last note of the bar before over the bar line (d :– | – :r).
     if (cursor.beat < EPS && cursor.bar > 1) {
-        const before = barOf(document, cursor.part, cursor.bar - 1)?.notes ?? [];
-        const last = before.find((n) => Math.abs(n.start + n.length - beatsInBar(document.map, cursor.bar - 1)) < EPS);
+        const before =
+            barOf(document, cursor.part, cursor.bar - 1)?.notes ?? [];
+        const last = before.find(
+            (n) =>
+                Math.abs(
+                    n.start +
+                        n.length -
+                        beatsInBar(document.map, cursor.bar - 1),
+                ) < EPS,
+        );
 
-        if (last && last.pitch !== 'rest' && !noteEndingAt(barOf(document, cursor.part, cursor.bar)?.notes ?? [], 0)) {
+        if (
+            last &&
+            last.pitch !== 'rest' &&
+            !noteEndingAt(
+                barOf(document, cursor.part, cursor.bar)?.notes ?? [],
+                0,
+            )
+        ) {
             return withBar(document, cursor.part, cursor.bar, (bar) => {
                 const rest = bar.notes.filter((n) => n.start > EPS);
                 const end = Math.min(1, nextBoundary(rest, 0, beats));
 
                 return {
                     ...bar,
-                    notes: sortNotes([...rest, { pitch: last.pitch, octave: last.octave, start: 0, length: end, source: 'typed', tie: true }]),
+                    notes: sortNotes([
+                        ...rest,
+                        {
+                            pitch: last.pitch,
+                            octave: last.octave,
+                            start: 0,
+                            length: end,
+                            source: 'typed',
+                            tie: true,
+                        },
+                    ]),
                     tacet: false,
                 };
             });
@@ -152,15 +215,23 @@ export function hold(document: ScoreDocument, cursor: Cursor): ScoreDocument {
             return bar;
         }
 
-        const rest = bar.notes.filter((n) => Math.abs(n.start - cursor.beat) > EPS);
+        const rest = bar.notes.filter(
+            (n) => Math.abs(n.start - cursor.beat) > EPS,
+        );
         const inBeat = cursor.beat - Math.floor(cursor.beat + EPS) > EPS;
         // In a triplet "–" holds for one more third (d,–,r); elsewhere inside a beat, one more quarter.
-        const step = onThird(cursor.beat) ? nextThird(cursor.beat) : inBeat ? cursor.beat + 0.25 : Math.floor(cursor.beat + EPS) + 1;
+        const step = onThird(cursor.beat)
+            ? nextThird(cursor.beat)
+            : inBeat
+              ? cursor.beat + 0.25
+              : Math.floor(cursor.beat + EPS) + 1;
         const end = Math.min(step, nextBoundary(rest, cursor.beat, beats));
 
         return {
             ...bar,
-            notes: rest.map((n) => (n === previous ? { ...n, length: end - n.start } : n)),
+            notes: rest.map((n) =>
+                n === previous ? { ...n, length: end - n.start } : n,
+            ),
         };
     });
 }
@@ -171,31 +242,58 @@ export function hold(document: ScoreDocument, cursor: Cursor): ScoreDocument {
  * into quarters (d.r,m). Lengths stay on the quarter-beat grid. Returns
  * where the cursor should go.
  */
-export function halfBeat(document: ScoreDocument, cursor: Cursor): { document: ScoreDocument; cursor: Cursor } {
+export function halfBeat(
+    document: ScoreDocument,
+    cursor: Cursor,
+): { document: ScoreDocument; cursor: Cursor } {
     const bar = barOf(document, cursor.part, cursor.bar);
-    const target = bar ? (noteStartingAt(bar.notes, cursor.beat) ?? noteEndingAt(bar.notes, cursor.beat)) : undefined;
+    const target = bar
+        ? (noteStartingAt(bar.notes, cursor.beat) ??
+          noteEndingAt(bar.notes, cursor.beat))
+        : undefined;
 
-    if (!target || target.length <= 0.25 + EPS || onThird(target.start) || onThird(target.start + target.length)) {
+    if (
+        !target ||
+        target.length <= 0.25 + EPS ||
+        onThird(target.start) ||
+        onThird(target.start + target.length)
+    ) {
         return { document, cursor };
     }
 
     // Half of a beat or more stays on whole halves; below that, quarters.
     const half = target.length / 2;
-    const length = half >= 0.5 - EPS ? Math.max(0.5, Math.floor(half * 2 + EPS) / 2) : Math.max(0.25, Math.floor(half * 4 + EPS) / 4);
+    const length =
+        half >= 0.5 - EPS
+            ? Math.max(0.5, Math.floor(half * 2 + EPS) / 2)
+            : Math.max(0.25, Math.floor(half * 4 + EPS) / 4);
 
     const next = withBar(document, cursor.part, cursor.bar, (b) => ({
         ...b,
         notes: b.notes.map((n) => (n === target ? { ...n, length } : n)),
     }));
 
-    return { document: next, cursor: { ...cursor, beat: target.start + length } };
+    return {
+        document: next,
+        cursor: { ...cursor, beat: target.start + length },
+    };
 }
 
 /** Make the note starting at `start` in this bar end at `end` (used to shorten a hold: "–" then "."). */
-export function setNoteEnd(document: ScoreDocument, voice: Voice, barNo: number, start: number, end: number): ScoreDocument {
+export function setNoteEnd(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+    start: number,
+    end: number,
+): ScoreDocument {
     return withBar(document, voice, barNo, (bar) => ({
         ...bar,
-        notes: bar.notes.map((n) => (Math.abs(n.start - start) < EPS && end > n.start + EPS ? { ...n, length: end - n.start } : n)),
+        notes: bar.notes.map((n) =>
+            Math.abs(n.start - start) < EPS && end > n.start + EPS
+                ? { ...n, length: end - n.start }
+                : n,
+        ),
     }));
 }
 
@@ -212,12 +310,22 @@ function nextThird(at: number): number {
  * into the first third of its beat, so the next two pitches fill the other
  * thirds — a triplet, written f,f,f. Returns where the cursor goes.
  */
-export function tripletBeat(document: ScoreDocument, cursor: Cursor): { document: ScoreDocument; cursor: Cursor } {
+export function tripletBeat(
+    document: ScoreDocument,
+    cursor: Cursor,
+): { document: ScoreDocument; cursor: Cursor } {
     const bar = barOf(document, cursor.part, cursor.bar);
-    const target = bar ? (noteStartingAt(bar.notes, cursor.beat) ?? noteEndingAt(bar.notes, cursor.beat)) : undefined;
+    const target = bar
+        ? (noteStartingAt(bar.notes, cursor.beat) ??
+          noteEndingAt(bar.notes, cursor.beat))
+        : undefined;
 
     // Only a note starting on a beat and lasting at least that beat can open a triplet.
-    if (!target || Math.abs(target.start - Math.round(target.start)) > EPS || target.length < 1 - EPS) {
+    if (
+        !target ||
+        Math.abs(target.start - Math.round(target.start)) > EPS ||
+        target.length < 1 - EPS
+    ) {
         return { document, cursor };
     }
 
@@ -226,17 +334,27 @@ export function tripletBeat(document: ScoreDocument, cursor: Cursor): { document
         notes: b.notes.map((n) => (n === target ? { ...n, length: 1 / 3 } : n)),
     }));
 
-    return { document: next, cursor: { ...cursor, beat: target.start + 1 / 3 } };
+    return {
+        document: next,
+        cursor: { ...cursor, beat: target.start + 1 / 3 },
+    };
 }
 
 /** The note the octave and chromatic keys act on. */
 function targetNote(document: ScoreDocument, cursor: Cursor): Note | undefined {
     const bar = barOf(document, cursor.part, cursor.bar);
 
-    return bar ? (noteStartingAt(bar.notes, cursor.beat) ?? noteEndingAt(bar.notes, cursor.beat)) : undefined;
+    return bar
+        ? (noteStartingAt(bar.notes, cursor.beat) ??
+              noteEndingAt(bar.notes, cursor.beat))
+        : undefined;
 }
 
-function changeTarget(document: ScoreDocument, cursor: Cursor, change: (note: Note) => Note): ScoreDocument {
+function changeTarget(
+    document: ScoreDocument,
+    cursor: Cursor,
+    change: (note: Note) => Note,
+): ScoreDocument {
     const target = targetNote(document, cursor);
 
     if (!target) {
@@ -250,7 +368,11 @@ function changeTarget(document: ScoreDocument, cursor: Cursor, change: (note: No
 }
 
 /** "," lowers and "'" raises the note one octave; press twice for two (d₂ · d₁ · d · d' · d''). */
-export function shiftOctave(document: ScoreDocument, cursor: Cursor, by: -1 | 1): ScoreDocument {
+export function shiftOctave(
+    document: ScoreDocument,
+    cursor: Cursor,
+    by: -1 | 1,
+): ScoreDocument {
     return changeTarget(document, cursor, (n) => ({
         ...n,
         octave: Math.max(-2, Math.min(2, n.octave + by)) as Octave,
@@ -258,11 +380,18 @@ export function shiftOctave(document: ScoreDocument, cursor: Cursor, by: -1 | 1)
 }
 
 /** "↑" sharpens f to fe; "↓" flattens t to ta (and back). */
-export function chromatic(document: ScoreDocument, cursor: Cursor, direction: 'up' | 'down'): ScoreDocument {
+export function chromatic(
+    document: ScoreDocument,
+    cursor: Cursor,
+    direction: 'up' | 'down',
+): ScoreDocument {
     const map: Partial<Record<Pitch, Pitch>> =
         direction === 'up' ? { f: 'fe', ta: 't' } : { t: 'ta', fe: 'f' };
 
-    return changeTarget(document, cursor, (n) => ({ ...n, pitch: map[n.pitch] ?? n.pitch }));
+    return changeTarget(document, cursor, (n) => ({
+        ...n,
+        pitch: map[n.pitch] ?? n.pitch,
+    }));
 }
 
 /**
@@ -272,21 +401,31 @@ export function chromatic(document: ScoreDocument, cursor: Cursor, direction: 'u
 export function nextSpot(document: ScoreDocument, cursor: Cursor): Cursor {
     const notes = barOf(document, cursor.part, cursor.bar)?.notes ?? [];
     const beats = beatsInBar(document.map, cursor.bar);
-    const candidates = [Math.floor(cursor.beat + EPS) + 1, ...notes.map((n) => n.start).filter((at) => at > cursor.beat + EPS)];
+    const candidates = [
+        Math.floor(cursor.beat + EPS) + 1,
+        ...notes.map((n) => n.start).filter((at) => at > cursor.beat + EPS),
+    ];
     const beat = Math.min(...candidates);
 
     if (beat < beats - EPS) return { ...cursor, beat };
 
-    return cursor.bar < document.bars ? { ...cursor, bar: cursor.bar + 1, beat: 0 } : cursor;
+    return cursor.bar < document.bars
+        ? { ...cursor, bar: cursor.bar + 1, beat: 0 }
+        : cursor;
 }
 
 /** ← : the previous note or beat, reaching back into the bar before. */
 export function previousSpot(document: ScoreDocument, cursor: Cursor): Cursor {
     const spots = (bar: number, before: number) => {
         const notes = barOf(document, cursor.part, bar)?.notes ?? [];
-        const beats = Array.from({ length: beatsInBar(document.map, bar) }, (_, i) => i);
+        const beats = Array.from(
+            { length: beatsInBar(document.map, bar) },
+            (_, i) => i,
+        );
 
-        return [...beats, ...notes.map((n) => n.start)].filter((at) => at < before - EPS);
+        return [...beats, ...notes.map((n) => n.start)].filter(
+            (at) => at < before - EPS,
+        );
     };
 
     const here = spots(cursor.bar, cursor.beat);
@@ -309,7 +448,9 @@ export function nextBeat(document: ScoreDocument, cursor: Cursor): Cursor {
         return { ...cursor, beat };
     }
 
-    return cursor.bar < document.bars ? { ...cursor, bar: cursor.bar + 1, beat: 0 } : cursor;
+    return cursor.bar < document.bars
+        ? { ...cursor, bar: cursor.bar + 1, beat: 0 }
+        : cursor;
 }
 
 export function previousBeat(document: ScoreDocument, cursor: Cursor): Cursor {
@@ -318,12 +459,20 @@ export function previousBeat(document: ScoreDocument, cursor: Cursor): Cursor {
     }
 
     return cursor.bar > 1
-        ? { ...cursor, bar: cursor.bar - 1, beat: beatsInBar(document.map, cursor.bar - 1) - 1 }
+        ? {
+              ...cursor,
+              bar: cursor.bar - 1,
+              beat: beatsInBar(document.map, cursor.bar - 1) - 1,
+          }
         : cursor;
 }
 
 /** A bar counts as written once the composer moves on from it with notes in it. */
-export function markDone(document: ScoreDocument, voice: Voice, barNo: number): ScoreDocument {
+export function markDone(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+): ScoreDocument {
     const bar = barOf(document, voice, barNo);
 
     if (!bar || bar.done || bar.notes.length === 0) {
@@ -337,7 +486,12 @@ export function markDone(document: ScoreDocument, voice: Voice, barNo: number): 
  * "Copy rhythm from soprano": the target bar takes the source bar's note
  * lengths, keeping its own pitches where it has them.
  */
-export function copyRhythm(document: ScoreDocument, from: Voice, to: Voice, barNo: number): ScoreDocument {
+export function copyRhythm(
+    document: ScoreDocument,
+    from: Voice,
+    to: Voice,
+    barNo: number,
+): ScoreDocument {
     const source = barOf(document, from, barNo);
 
     if (!source || source.notes.length === 0) {
@@ -347,7 +501,13 @@ export function copyRhythm(document: ScoreDocument, from: Voice, to: Voice, barN
     const target = barOf(document, to, barNo);
     const fallback: Note =
         target?.notes[target.notes.length - 1] ??
-        ({ pitch: 'd', octave: to === 'B' ? -1 : 0, start: 0, length: 1, source: 'typed' } as Note);
+        ({
+            pitch: 'd',
+            octave: to === 'B' ? -1 : 0,
+            start: 0,
+            length: 1,
+            source: 'typed',
+        } as Note);
 
     let last = fallback;
 
@@ -356,7 +516,13 @@ export function copyRhythm(document: ScoreDocument, from: Voice, to: Voice, barN
         const pick = own ?? last;
         last = pick;
 
-        return { pitch: pick.pitch, octave: pick.octave, start: n.start, length: n.length, source: 'typed' as const };
+        return {
+            pitch: pick.pitch,
+            octave: pick.octave,
+            start: n.start,
+            length: n.length,
+            source: 'typed' as const,
+        };
     });
 
     return withBar(document, to, barNo, (bar) => ({ ...bar, notes }));
@@ -365,7 +531,13 @@ export function copyRhythm(document: ScoreDocument, from: Voice, to: Voice, barN
 /**
  * "Repeat bars 5–8 here": copy a run of bars of one part to start at `to`.
  */
-export function repeatBars(document: ScoreDocument, voice: Voice, from: number, count: number, to: number): ScoreDocument {
+export function repeatBars(
+    document: ScoreDocument,
+    voice: Voice,
+    from: number,
+    count: number,
+    to: number,
+): ScoreDocument {
     let next = document;
 
     for (let i = 0; i < count; i++) {
@@ -376,13 +548,19 @@ export function repeatBars(document: ScoreDocument, voice: Voice, from: number, 
             break;
         }
 
-        if (beatsInBar(document.map, from + i) !== beatsInBar(document.map, target)) {
+        if (
+            beatsInBar(document.map, from + i) !==
+            beatsInBar(document.map, target)
+        ) {
             continue;
         }
 
         next = withBar(next, voice, target, (bar) => ({
             ...bar,
-            notes: source.notes.map((n) => ({ ...n, source: 'typed' as const })),
+            notes: source.notes.map((n) => ({
+                ...n,
+                source: 'typed' as const,
+            })),
         }));
     }
 
@@ -390,9 +568,17 @@ export function repeatBars(document: ScoreDocument, voice: Voice, from: number, 
 }
 
 /** Drop in the bars a suggestion came back with. */
-export function applyBars(document: ScoreDocument, voice: Voice, bars: Bar[]): ScoreDocument {
+export function applyBars(
+    document: ScoreDocument,
+    voice: Voice,
+    bars: Bar[],
+): ScoreDocument {
     return bars.reduce(
-        (doc, incoming) => withBar(doc, voice, incoming.no, (bar) => ({ ...bar, notes: sortNotes(incoming.notes) })),
+        (doc, incoming) =>
+            withBar(doc, voice, incoming.no, (bar) => ({
+                ...bar,
+                notes: sortNotes(incoming.notes),
+            })),
         document,
     );
 }
@@ -405,14 +591,20 @@ export function addPart(document: ScoreDocument, voice: Voice): ScoreDocument {
     const part: Part = {
         id: voice,
         name: VOICE_NAMES[voice],
-        bars: Array.from({ length: document.bars }, (_, i) => ({ no: i + 1, notes: [], done: false })),
+        bars: Array.from({ length: document.bars }, (_, i) => ({
+            no: i + 1,
+            notes: [],
+            done: false,
+        })),
     };
 
     const order: Voice[] = ['S', 'A', 'T', 'B'];
 
     return {
         ...document,
-        parts: [...document.parts, part].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)),
+        parts: [...document.parts, part].sort(
+            (a, b) => order.indexOf(a.id) - order.indexOf(b.id),
+        ),
     };
 }
 
@@ -420,37 +612,75 @@ export function addPart(document: ScoreDocument, voice: Voice): ScoreDocument {
  * Take a part out of the score completely: its notes, the words written
  * under it, and its name on any mark meant for certain parts only.
  */
-export function removePart(document: ScoreDocument, voice: Voice): ScoreDocument {
+export function removePart(
+    document: ScoreDocument,
+    voice: Voice,
+): ScoreDocument {
     if (!partOf(document, voice) || document.parts.length <= 1) return document;
 
     return {
         ...document,
         parts: document.parts.filter((p) => p.id !== voice),
-        verses: document.verses.map((v) => ({ ...v, syllables: v.syllables.filter((s) => s.part !== voice) })),
+        verses: document.verses.map((v) => ({
+            ...v,
+            syllables: v.syllables.filter((s) => s.part !== voice),
+        })),
         marks: document.marks
-            .map((m) => (m.parts ? { ...m, parts: m.parts.filter((p) => p !== voice) } : m))
+            .map((m) =>
+                m.parts
+                    ? { ...m, parts: m.parts.filter((p) => p !== voice) }
+                    : m,
+            )
             .filter((m) => m.parts === null || m.parts.length > 0),
     };
 }
 
 /** Empty every bar of a part (and the words under it), keeping the part itself. */
-export function clearPart(document: ScoreDocument, voice: Voice): ScoreDocument {
+export function clearPart(
+    document: ScoreDocument,
+    voice: Voice,
+): ScoreDocument {
     if (!partOf(document, voice)) return document;
 
     return {
         ...document,
-        parts: document.parts.map((p) => (p.id === voice ? { ...p, bars: p.bars.map((b) => ({ ...b, notes: [], done: false, tacet: false })) } : p)),
-        verses: document.verses.map((v) => ({ ...v, syllables: v.syllables.filter((s) => s.part !== voice) })),
+        parts: document.parts.map((p) =>
+            p.id === voice
+                ? {
+                      ...p,
+                      bars: p.bars.map((b) => ({
+                          ...b,
+                          notes: [],
+                          done: false,
+                          tacet: false,
+                      })),
+                  }
+                : p,
+        ),
+        verses: document.verses.map((v) => ({
+            ...v,
+            syllables: v.syllables.filter((s) => s.part !== voice),
+        })),
     };
 }
 
 /** What a part holds, for confirming before it is deleted. */
-export function partContents(document: ScoreDocument, voice: Voice): { bars: number; firstBar: number | null; syllables: number } {
+export function partContents(
+    document: ScoreDocument,
+    voice: Voice,
+): { bars: number; firstBar: number | null; syllables: number } {
     const bars = partOf(document, voice)?.bars ?? [];
     const written = bars.filter((b) => b.notes.some((n) => n.pitch !== 'rest'));
-    const syllables = document.verses.reduce((n, v) => n + v.syllables.filter((s) => s.part === voice).length, 0);
+    const syllables = document.verses.reduce(
+        (n, v) => n + v.syllables.filter((s) => s.part === voice).length,
+        0,
+    );
 
-    return { bars: written.length, firstBar: written[0]?.no ?? null, syllables };
+    return {
+        bars: written.length,
+        firstBar: written[0]?.no ?? null,
+        syllables,
+    };
 }
 
 /**
@@ -458,26 +688,57 @@ export function partContents(document: ScoreDocument, voice: Voice): { bars: num
  * them cleared, the bars counted as written — and its line is left off the
  * sheet wherever a whole line rests.
  */
-export function restPart(document: ScoreDocument, voice: Voice, bars: number[]): ScoreDocument {
+export function restPart(
+    document: ScoreDocument,
+    voice: Voice,
+    bars: number[],
+): ScoreDocument {
     const set = new Set(bars);
 
     return {
         ...document,
         parts: document.parts.map((p) =>
-            p.id === voice ? { ...p, bars: p.bars.map((b) => (set.has(b.no) ? { ...b, notes: [], done: true, tacet: true } : b)) } : p,
+            p.id === voice
+                ? {
+                      ...p,
+                      bars: p.bars.map((b) =>
+                          set.has(b.no)
+                              ? { ...b, notes: [], done: true, tacet: true }
+                              : b,
+                      ),
+                  }
+                : p,
         ),
-        verses: document.verses.map((v) => ({ ...v, syllables: v.syllables.filter((s) => !(s.part === voice && set.has(s.bar))) })),
+        verses: document.verses.map((v) => ({
+            ...v,
+            syllables: v.syllables.filter(
+                (s) => !(s.part === voice && set.has(s.bar)),
+            ),
+        })),
     };
 }
 
 /** Put a resting part back into some bars, empty and ready to write in. */
-export function bringBackPart(document: ScoreDocument, voice: Voice, bars: number[]): ScoreDocument {
+export function bringBackPart(
+    document: ScoreDocument,
+    voice: Voice,
+    bars: number[],
+): ScoreDocument {
     const set = new Set(bars);
 
     return {
         ...document,
         parts: document.parts.map((p) =>
-            p.id === voice ? { ...p, bars: p.bars.map((b) => (set.has(b.no) && b.tacet ? { ...b, done: false, tacet: false } : b)) } : p,
+            p.id === voice
+                ? {
+                      ...p,
+                      bars: p.bars.map((b) =>
+                          set.has(b.no) && b.tacet
+                              ? { ...b, done: false, tacet: false }
+                              : b,
+                      ),
+                  }
+                : p,
         ),
     };
 }
@@ -485,7 +746,11 @@ export function bringBackPart(document: ScoreDocument, voice: Voice, bars: numbe
 // ------------------------------------------------------------ adding & removing bars
 
 /** Insert `count` empty bars before bar `at` (bars.length + 1 = at the end); everything after moves along. */
-export function insertBars(document: ScoreDocument, at: number, count = 1): ScoreDocument {
+export function insertBars(
+    document: ScoreDocument,
+    at: number,
+    count = 1,
+): ScoreDocument {
     const add = Math.max(0, Math.min(count, MAX_BARS - document.bars));
     const where = Math.max(1, Math.min(at, document.bars + 1));
 
@@ -500,25 +765,54 @@ export function insertBars(document: ScoreDocument, at: number, count = 1): Scor
             ...part,
             bars: [
                 ...part.bars.slice(0, where - 1),
-                ...Array.from({ length: add }, (_, i) => ({ no: where + i, notes: [] as Note[], done: false })),
-                ...part.bars.slice(where - 1).map((b) => ({ ...b, no: b.no + add })),
+                ...Array.from({ length: add }, (_, i) => ({
+                    no: where + i,
+                    notes: [] as Note[],
+                    done: false,
+                })),
+                ...part.bars
+                    .slice(where - 1)
+                    .map((b) => ({ ...b, no: b.no + add })),
             ],
         })),
-        verses: document.verses.map((v) => ({ ...v, syllables: v.syllables.map((s) => ({ ...s, bar: shift(s.bar) })) })),
+        verses: document.verses.map((v) => ({
+            ...v,
+            syllables: v.syllables.map((s) => ({ ...s, bar: shift(s.bar) })),
+        })),
         marks: document.marks.map((m) => ({
             ...m,
             at: { ...m.at, bar: shift(m.at.bar) },
             to: m.to ? { ...m.to, bar: shift(m.to.bar) } : null,
         })),
         // A section the new bars land inside grows to hold them.
-        sections: document.sections.map((s) => ({ ...s, from: shift(s.from), to: s.to >= where ? s.to + add : s.to })),
+        sections: document.sections.map((s) => ({
+            ...s,
+            from: shift(s.from),
+            to: s.to >= where ? s.to + add : s.to,
+        })),
         // Bar 1 always keeps the opening tempo & time; later changes move with their bars.
-        map: document.map.map((e) => (e.bar === 1 ? e : { ...e, bar: shift(e.bar), until: e.until === null ? null : e.until >= where ? e.until + add : e.until })),
+        map: document.map.map((e) =>
+            e.bar === 1
+                ? e
+                : {
+                      ...e,
+                      bar: shift(e.bar),
+                      until:
+                          e.until === null
+                              ? null
+                              : e.until >= where
+                                ? e.until + add
+                                : e.until,
+                  },
+        ),
     };
 }
 
 /** A copy of bar `barNo` (every part's notes) straight after it. */
-export function duplicateBar(document: ScoreDocument, barNo: number): ScoreDocument {
+export function duplicateBar(
+    document: ScoreDocument,
+    barNo: number,
+): ScoreDocument {
     const next = insertBars(document, barNo + 1, 1);
 
     if (next === document) return document;
@@ -530,7 +824,16 @@ export function duplicateBar(document: ScoreDocument, barNo: number): ScoreDocum
 
             return {
                 ...part,
-                bars: part.bars.map((b) => (b.no === barNo + 1 && source ? { ...b, notes: source.notes.map((n) => ({ ...n })), done: source.done, tacet: source.tacet } : b)),
+                bars: part.bars.map((b) =>
+                    b.no === barNo + 1 && source
+                        ? {
+                              ...b,
+                              notes: source.notes.map((n) => ({ ...n })),
+                              done: source.done,
+                              tacet: source.tacet,
+                          }
+                        : b,
+                ),
             };
         }),
     };
@@ -541,24 +844,46 @@ export function duplicateBar(document: ScoreDocument, barNo: number): ScoreDocum
  * everything after moves back. A tempo or time change written on that bar
  * carries on from the bar that takes its place.
  */
-export function deleteBar(document: ScoreDocument, barNo: number): ScoreDocument {
-    if (document.bars <= 1 || barNo < 1 || barNo > document.bars) return document;
+export function deleteBar(
+    document: ScoreDocument,
+    barNo: number,
+): ScoreDocument {
+    if (document.bars <= 1 || barNo < 1 || barNo > document.bars)
+        return document;
 
     const shift = (bar: number) => (bar > barNo ? bar - 1 : bar);
 
     // Tempo & time: fold an event on the deleted bar into the next bar's.
     const own = document.map.find((e) => e.bar === barNo);
     const next = document.map.find((e) => e.bar === barNo + 1);
-    let map: MapEvent[] = document.map.filter((e) => e.bar !== barNo && e.bar !== barNo + 1);
+    let map: MapEvent[] = document.map.filter(
+        (e) => e.bar !== barNo && e.bar !== barNo + 1,
+    );
 
     if (own && barNo < document.bars) {
-        map.push({ ...own, bpm: next?.bpm ?? own.bpm, beats: next?.beats ?? own.beats, ramp: next?.ramp ?? own.ramp, until: next?.until ?? own.until });
+        map.push({
+            ...own,
+            bpm: next?.bpm ?? own.bpm,
+            beats: next?.beats ?? own.beats,
+            ramp: next?.ramp ?? own.ramp,
+            until: next?.until ?? own.until,
+        });
     } else if (next) {
         map.push(next);
     }
 
     map = map
-        .map((e) => ({ ...e, bar: e.bar === barNo ? barNo : shift(e.bar), until: e.until === null ? null : Math.max(e.bar === barNo ? barNo : shift(e.bar), shift(e.until)) }))
+        .map((e) => ({
+            ...e,
+            bar: e.bar === barNo ? barNo : shift(e.bar),
+            until:
+                e.until === null
+                    ? null
+                    : Math.max(
+                          e.bar === barNo ? barNo : shift(e.bar),
+                          shift(e.until),
+                      ),
+        }))
         .sort((a, b) => a.bar - b.bar);
 
     return {
@@ -566,21 +891,45 @@ export function deleteBar(document: ScoreDocument, barNo: number): ScoreDocument
         bars: document.bars - 1,
         parts: document.parts.map((part) => ({
             ...part,
-            bars: part.bars.filter((b) => b.no !== barNo).map((b) => ({ ...b, no: shift(b.no) })),
+            bars: part.bars
+                .filter((b) => b.no !== barNo)
+                .map((b) => ({ ...b, no: shift(b.no) })),
         })),
         verses: document.verses.map((v) => ({
             ...v,
-            syllables: v.syllables.filter((s) => s.bar !== barNo).map((s) => ({ ...s, bar: shift(s.bar) })),
+            syllables: v.syllables
+                .filter((s) => s.bar !== barNo)
+                .map((s) => ({ ...s, bar: shift(s.bar) })),
         })),
         marks: document.marks
-            .filter((m) => m.at.bar !== barNo || (m.to !== null && m.to.bar > barNo))
+            .filter(
+                (m) =>
+                    m.at.bar !== barNo || (m.to !== null && m.to.bar > barNo),
+            )
             .map((m) => ({
                 ...m,
-                at: m.at.bar === barNo ? { bar: barNo, beat: 0 } : { ...m.at, bar: shift(m.at.bar) },
-                to: m.to ? (m.to.bar === barNo ? { bar: Math.max(1, barNo - 1), beat: beatsInBar(document.map, Math.max(1, barNo - 1)) } : { ...m.to, bar: shift(m.to.bar) }) : null,
+                at:
+                    m.at.bar === barNo
+                        ? { bar: barNo, beat: 0 }
+                        : { ...m.at, bar: shift(m.at.bar) },
+                to: m.to
+                    ? m.to.bar === barNo
+                        ? {
+                              bar: Math.max(1, barNo - 1),
+                              beat: beatsInBar(
+                                  document.map,
+                                  Math.max(1, barNo - 1),
+                              ),
+                          }
+                        : { ...m.to, bar: shift(m.to.bar) }
+                    : null,
             })),
         sections: document.sections
-            .map((s) => ({ ...s, from: s.from > barNo ? s.from - 1 : s.from, to: s.to >= barNo ? s.to - 1 : s.to }))
+            .map((s) => ({
+                ...s,
+                from: s.from > barNo ? s.from - 1 : s.from,
+                to: s.to >= barNo ? s.to - 1 : s.to,
+            }))
             .filter((s) => s.to >= s.from),
         map,
     };
@@ -600,7 +949,14 @@ export function addBars(document: ScoreDocument, count: number): ScoreDocument {
         bars: document.bars + add,
         parts: document.parts.map((part) => ({
             ...part,
-            bars: [...part.bars, ...Array.from({ length: add }, (_, i) => ({ no: document.bars + i + 1, notes: [] as Note[], done: false }))],
+            bars: [
+                ...part.bars,
+                ...Array.from({ length: add }, (_, i) => ({
+                    no: document.bars + i + 1,
+                    notes: [] as Note[],
+                    done: false,
+                })),
+            ],
         })),
     };
 }
@@ -608,33 +964,56 @@ export function addBars(document: ScoreDocument, count: number): ScoreDocument {
 /** Drop the last bar if nothing is written in it, in any part (tidying up after a typed line). */
 export function dropEmptyLastBar(document: ScoreDocument): ScoreDocument {
     const last = document.bars;
-    const empty = document.parts.every((p) => (p.bars[last - 1]?.notes.length ?? 0) === 0);
-    const used = [...document.marks, ...document.verses.flatMap((v) => v.syllables)].some((m) => ('at' in m ? m.at.bar : m.bar) === last);
+    const empty = document.parts.every(
+        (p) => (p.bars[last - 1]?.notes.length ?? 0) === 0,
+    );
+    const used = [
+        ...document.marks,
+        ...document.verses.flatMap((v) => v.syllables),
+    ].some((m) => ('at' in m ? m.at.bar : m.bar) === last);
 
-    if (last <= 1 || !empty || used || document.map.some((e) => e.bar === last)) return document;
+    if (last <= 1 || !empty || used || document.map.some((e) => e.bar === last))
+        return document;
 
     return {
         ...document,
         bars: last - 1,
-        parts: document.parts.map((part) => ({ ...part, bars: part.bars.slice(0, last - 1) })),
-        sections: document.sections.map((s) => (s.to === last ? { ...s, to: last - 1 } : s)).filter((s) => s.from <= s.to),
+        parts: document.parts.map((part) => ({
+            ...part,
+            bars: part.bars.slice(0, last - 1),
+        })),
+        sections: document.sections
+            .map((s) => (s.to === last ? { ...s, to: last - 1 } : s))
+            .filter((s) => s.from <= s.to),
     };
 }
 
 /**
  * A new section from `from`, cutting short the one it starts inside.
  */
-export function addSection(document: ScoreDocument, name: string, from: number): ScoreDocument {
+export function addSection(
+    document: ScoreDocument,
+    name: string,
+    from: number,
+): ScoreDocument {
     // 1st-time / D.S.-time brackets are not named sections; leave them be.
     const endings = document.sections.filter((s) => s.ending !== null);
-    const sorted = document.sections.filter((s) => s.ending === null).sort((a, b) => a.from - b.from);
-    const nextStart = sorted.find((s) => s.from > from)?.from ?? document.bars + 1;
+    const sorted = document.sections
+        .filter((s) => s.ending === null)
+        .sort((a, b) => a.from - b.from);
+    const nextStart =
+        sorted.find((s) => s.from > from)?.from ?? document.bars + 1;
 
     const sections: Section[] = sorted
         .filter((s) => s.from !== from)
-        .map((s) => (s.from < from && s.to >= from ? { ...s, to: from - 1 } : s));
+        .map((s) =>
+            s.from < from && s.to >= from ? { ...s, to: from - 1 } : s,
+        );
 
-    sections.push({ name, from, to: nextStart - 1, ending: null, repeat: 1 }, ...endings);
+    sections.push(
+        { name, from, to: nextStart - 1, ending: null, repeat: 1 },
+        ...endings,
+    );
 
     return { ...document, sections: sections.sort((a, b) => a.from - b.from) };
 }
@@ -655,20 +1034,36 @@ export function wordsPart(document: ScoreDocument, preferred: Voice): Voice {
 }
 
 /** Note starts in a bar of `voice`, in order — the slots words go on. */
-export function noteStarts(document: ScoreDocument, voice: Voice, barNo: number): number[] {
+export function noteStarts(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+): number[] {
     // A note held over the bar line carries the syllable before it, so it gets none of its own;
     // nor does a note inside a slur — it is sung on the syllable the slur starts with.
     const slurred = slurredOn(partOf(document, voice));
 
     return (barOf(document, voice, barNo)?.notes ?? [])
-        .filter((n) => n.pitch !== 'rest' && !n.tie && !slurred.has(slotKey(barNo, n.start)))
+        .filter(
+            (n) =>
+                n.pitch !== 'rest' &&
+                !n.tie &&
+                !slurred.has(slotKey(barNo, n.start)),
+        )
         .map((n) => n.start);
 }
 
 /** The next note start after `beat`, crossing into later bars. */
-export function nextSlot(document: ScoreDocument, voice: Voice, barNo: number, beat: number): { bar: number; beat: number } | null {
+export function nextSlot(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+    beat: number,
+): { bar: number; beat: number } | null {
     for (let b = barNo; b <= document.bars; b++) {
-        const starts = noteStarts(document, voice, b).filter((s) => b > barNo || s > beat + EPS);
+        const starts = noteStarts(document, voice, b).filter(
+            (s) => b > barNo || s > beat + EPS,
+        );
 
         if (starts.length > 0) {
             return { bar: b, beat: starts[0] };
@@ -678,9 +1073,16 @@ export function nextSlot(document: ScoreDocument, voice: Voice, barNo: number, b
     return null;
 }
 
-export function previousSlot(document: ScoreDocument, voice: Voice, barNo: number, beat: number): { bar: number; beat: number } | null {
+export function previousSlot(
+    document: ScoreDocument,
+    voice: Voice,
+    barNo: number,
+    beat: number,
+): { bar: number; beat: number } | null {
     for (let b = barNo; b >= 1; b--) {
-        const starts = noteStarts(document, voice, b).filter((s) => b < barNo || s < beat - EPS);
+        const starts = noteStarts(document, voice, b).filter(
+            (s) => b < barNo || s < beat - EPS,
+        );
 
         if (starts.length > 0) {
             return { bar: b, beat: starts[starts.length - 1] };
@@ -690,9 +1092,18 @@ export function previousSlot(document: ScoreDocument, voice: Voice, barNo: numbe
     return null;
 }
 
-export function syllableAt(document: ScoreDocument, verse: number, voice: Voice, barNo: number, beat: number): Syllable | undefined {
+export function syllableAt(
+    document: ScoreDocument,
+    verse: number,
+    voice: Voice,
+    barNo: number,
+    beat: number,
+): Syllable | undefined {
     return document.verses[verse]?.syllables.find(
-        (s) => s.part === voice && s.bar === barNo && Math.abs(s.beat - beat) < EPS,
+        (s) =>
+            s.part === voice &&
+            s.bar === barNo &&
+            Math.abs(s.beat - beat) < EPS,
     );
 }
 
@@ -714,42 +1125,78 @@ export function setSyllable(
             }
 
             const others = v.syllables.filter(
-                (s) => !(s.part === voice && s.bar === barNo && Math.abs(s.beat - beat) < EPS),
+                (s) =>
+                    !(
+                        s.part === voice &&
+                        s.bar === barNo &&
+                        Math.abs(s.beat - beat) < EPS
+                    ),
             );
-            const current = v.syllables.find((s) => s.part === voice && s.bar === barNo && Math.abs(s.beat - beat) < EPS);
+            const current = v.syllables.find(
+                (s) =>
+                    s.part === voice &&
+                    s.bar === barNo &&
+                    Math.abs(s.beat - beat) < EPS,
+            );
 
             if (text.trim() === '') {
                 return { ...v, syllables: others };
             }
 
-            const syllable: Syllable = { part: voice, bar: barNo, beat, text, join: join ?? current?.join ?? 'none' };
+            const syllable: Syllable = {
+                part: voice,
+                bar: barNo,
+                beat,
+                text,
+                join: join ?? current?.join ?? 'none',
+            };
 
             return {
                 ...v,
-                syllables: [...others, syllable].sort((a, b) => a.bar - b.bar || a.beat - b.beat),
+                syllables: [...others, syllable].sort(
+                    (a, b) => a.bar - b.bar || a.beat - b.beat,
+                ),
             };
         }),
     };
 }
 
-export function addVerse(document: ScoreDocument, lang: string, label: string): ScoreDocument {
+export function addVerse(
+    document: ScoreDocument,
+    lang: string,
+    label: string,
+): ScoreDocument {
     const id = `v${Date.now().toString(36)}`;
 
-    return { ...document, verses: [...document.verses, { id, label, lang, syllables: [] }] };
+    return {
+        ...document,
+        verses: [...document.verses, { id, label, lang, syllables: [] }],
+    };
 }
 
 /** Take every word out of one verse, keeping the verse itself. */
-export function clearVerse(document: ScoreDocument, verse: number): ScoreDocument {
+export function clearVerse(
+    document: ScoreDocument,
+    verse: number,
+): ScoreDocument {
     if (!document.verses[verse]?.syllables.length) return document;
 
-    return { ...document, verses: document.verses.map((v, i) => (i === verse ? { ...v, syllables: [] } : v)) };
+    return {
+        ...document,
+        verses: document.verses.map((v, i) =>
+            i === verse ? { ...v, syllables: [] } : v,
+        ),
+    };
 }
 
 /**
  * Take a verse out of the score. Verses still called "Verse 3", "Verse 4"…
  * move up a number, so the numbering keeps no gap.
  */
-export function deleteVerse(document: ScoreDocument, verse: number): ScoreDocument {
+export function deleteVerse(
+    document: ScoreDocument,
+    verse: number,
+): ScoreDocument {
     if (!document.verses[verse]) return document;
 
     let n = 0;
@@ -770,14 +1217,33 @@ export function deleteVerse(document: ScoreDocument, verse: number): ScoreDocume
 const DYNAMICS = ['mp', 'mf', 'f', 'ff', 'p', 'pp'];
 
 /** "f" on the text palette cycles the dynamic at the cursor: mp → mf → f → ff → p → pp → none. */
-export function cycleDynamic(document: ScoreDocument, barNo: number, beat: number): ScoreDocument {
+export function cycleDynamic(
+    document: ScoreDocument,
+    barNo: number,
+    beat: number,
+): ScoreDocument {
     const existing = document.marks.find(
-        (m) => m.kind === 'dyn' && m.at.bar === barNo && Math.abs(m.at.beat - beat) < EPS,
+        (m) =>
+            m.kind === 'dyn' &&
+            m.at.bar === barNo &&
+            Math.abs(m.at.beat - beat) < EPS,
     );
     const others = document.marks.filter((m) => m !== existing);
 
     if (!existing) {
-        return { ...document, marks: [...others, { kind: 'dyn', value: 'mp', at: { bar: barNo, beat }, to: null, parts: null }] };
+        return {
+            ...document,
+            marks: [
+                ...others,
+                {
+                    kind: 'dyn',
+                    value: 'mp',
+                    at: { bar: barNo, beat },
+                    to: null,
+                    parts: null,
+                },
+            ],
+        };
     }
 
     const next = DYNAMICS[DYNAMICS.indexOf(existing.value) + 1];
@@ -793,13 +1259,25 @@ export function addMark(document: ScoreDocument, mark: Mark): ScoreDocument {
 }
 
 /** D.S. sits at the end of the bar the choir turns back from. */
-export function toggleNav(document: ScoreDocument, barNo: number, value: '$' | 'DS' | 'DC' | 'Fine'): ScoreDocument {
+export function toggleNav(
+    document: ScoreDocument,
+    barNo: number,
+    value: '$' | 'DS' | 'DC' | 'Fine',
+): ScoreDocument {
     const beat = value === '$' ? 0 : beatsInBar(document.map, barNo) - 1;
-    const existing = document.marks.find((m) => m.kind === 'nav' && m.value === value && m.at.bar === barNo);
+    const existing = document.marks.find(
+        (m) => m.kind === 'nav' && m.value === value && m.at.bar === barNo,
+    );
 
     return existing
         ? { ...document, marks: document.marks.filter((m) => m !== existing) }
-        : addMark(document, { kind: 'nav', value, at: { bar: barNo, beat }, to: null, parts: null });
+        : addMark(document, {
+              kind: 'nav',
+              value,
+              at: { bar: barNo, beat },
+              to: null,
+              parts: null,
+          });
 }
 
 /**
@@ -807,7 +1285,11 @@ export function toggleNav(document: ScoreDocument, barNo: number, value: '$' | '
  * D.S. jump (2), or every time (null). Neighbouring bars with the same mark
  * join into one bracket, stored as a section with `ending` 1 or 2.
  */
-export function setBarPass(document: ScoreDocument, barNo: number, pass: 1 | 2 | null): ScoreDocument {
+export function setBarPass(
+    document: ScoreDocument,
+    barNo: number,
+    pass: 1 | 2 | null,
+): ScoreDocument {
     const kept: Section[] = [];
 
     for (const s of document.sections) {
@@ -836,7 +1318,10 @@ export function setBarPass(document: ScoreDocument, barNo: number, pass: 1 | 2 |
 
     return {
         ...document,
-        sections: [...kept.filter((s) => s !== before && s !== after), merged].sort((a, b) => a.from - b.from),
+        sections: [
+            ...kept.filter((s) => s !== before && s !== after),
+            merged,
+        ].sort((a, b) => a.from - b.from),
     };
 }
 
@@ -851,7 +1336,21 @@ export type MapChange = {
     until: number | null;
 };
 
-const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+const ORDINAL = [
+    '',
+    '1st',
+    '2nd',
+    '3rd',
+    '4th',
+    '5th',
+    '6th',
+    '7th',
+    '8th',
+    '9th',
+    '10th',
+    '11th',
+    '12th',
+];
 
 /**
  * Apply a tempo / time change from `change.bar`. When the beats in each bar
@@ -859,14 +1358,21 @@ const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9t
  * place in time and flow into new bars (a note crossing a new bar line is
  * split in two). Everything after shifts along.
  */
-export function applyMapChange(document: ScoreDocument, change: MapChange): { document: ScoreDocument; message: string | null } {
+export function applyMapChange(
+    document: ScoreDocument,
+    change: MapChange,
+): { document: ScoreDocument; message: string | null } {
     const first = change.bar;
     const last = change.until ?? document.bars;
-    const oldBeats = Array.from({ length: last - first + 1 }, (_, i) => beatsInBar(document.map, first + i));
+    const oldBeats = Array.from({ length: last - first + 1 }, (_, i) =>
+        beatsInBar(document.map, first + i),
+    );
     const total = oldBeats.reduce((a, b) => a + b, 0);
     const sameTime = oldBeats.every((b) => b === change.beats);
 
-    const newCount = sameTime ? oldBeats.length : Math.max(1, Math.ceil(total / change.beats - EPS));
+    const newCount = sameTime
+        ? oldBeats.length
+        : Math.max(1, Math.ceil(total / change.beats - EPS));
     const delta = newCount - oldBeats.length;
     const newLast = first + newCount - 1;
 
@@ -874,26 +1380,38 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
     const offsets: number[] = [];
     oldBeats.reduce((sum, b, i) => ((offsets[i] = sum), sum + b), 0);
 
-    const move = (barNo: number, beat: number): { bar: number; beat: number } => {
+    const move = (
+        barNo: number,
+        beat: number,
+    ): { bar: number; beat: number } => {
         if (barNo < first) return { bar: barNo, beat };
         if (barNo > last) return { bar: barNo + delta, beat };
         if (sameTime) return { bar: barNo, beat };
 
         const at = offsets[barNo - first] + beat;
 
-        return { bar: first + Math.floor(at / change.beats + EPS), beat: at - Math.floor(at / change.beats + EPS) * change.beats };
+        return {
+            bar: first + Math.floor(at / change.beats + EPS),
+            beat: at - Math.floor(at / change.beats + EPS) * change.beats,
+        };
     };
 
     const parts = document.parts.map((part) => {
         const before = part.bars.slice(0, first - 1);
-        const after = part.bars.slice(last).map((bar) => ({ ...bar, no: bar.no + delta }));
+        const after = part.bars
+            .slice(last)
+            .map((bar) => ({ ...bar, no: bar.no + delta }));
 
         let middle: Bar[];
 
         if (sameTime) {
             middle = part.bars.slice(first - 1, last);
         } else {
-            middle = Array.from({ length: newCount }, (_, i) => ({ no: first + i, notes: [] as Note[], done: false }));
+            middle = Array.from({ length: newCount }, (_, i) => ({
+                no: first + i,
+                notes: [] as Note[],
+                done: false,
+            }));
 
             part.bars.slice(first - 1, last).forEach((bar, i) => {
                 for (const note of bar.notes) {
@@ -906,14 +1424,20 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
                         const room = change.beats - inBar;
                         const length = Math.min(room, remaining);
 
-                        middle[index]?.notes.push({ ...note, start: inBar, length });
+                        middle[index]?.notes.push({
+                            ...note,
+                            start: inBar,
+                            length,
+                        });
                         start += length;
                         remaining -= length;
                     }
                 }
             });
 
-            const wasDone = part.bars.slice(first - 1, last).every((b) => b.done);
+            const wasDone = part.bars
+                .slice(first - 1, last)
+                .every((b) => b.done);
 
             middle = middle.map((bar) => ({
                 ...bar,
@@ -927,7 +1451,10 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
 
     const verses = document.verses.map((verse) => ({
         ...verse,
-        syllables: verse.syllables.map((s) => ({ ...s, ...move(s.bar, s.beat) })),
+        syllables: verse.syllables.map((s) => ({
+            ...s,
+            ...move(s.bar, s.beat),
+        })),
     }));
 
     const marks = document.marks.map((mark) => ({
@@ -938,8 +1465,18 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
 
     const sections = document.sections.map((s) => ({
         ...s,
-        from: s.from > last ? s.from + delta : s.from > first ? move(s.from, 0).bar : s.from,
-        to: s.to >= last ? s.to + delta : s.to >= first ? move(s.to, 0).bar : s.to,
+        from:
+            s.from > last
+                ? s.from + delta
+                : s.from > first
+                  ? move(s.from, 0).bar
+                  : s.from,
+        to:
+            s.to >= last
+                ? s.to + delta
+                : s.to >= first
+                  ? move(s.to, 0).bar
+                  : s.to,
     }));
 
     // The new event replaces any change inside the range; later ones shift.
@@ -952,12 +1489,22 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
             ramp: change.ramp,
             until: change.until === null ? null : newLast,
         },
-        ...document.map.filter((e) => e.bar > last).map((e) => ({ ...e, bar: e.bar + delta, until: e.until === null ? null : e.until + delta })),
+        ...document.map
+            .filter((e) => e.bar > last)
+            .map((e) => ({
+                ...e,
+                bar: e.bar + delta,
+                until: e.until === null ? null : e.until + delta,
+            })),
     ];
 
     // Bar 1 always carries both values.
     if (map[0].bar === 1) {
-        map[0] = { ...map[0], bpm: map[0].bpm ?? change.bpm, beats: map[0].beats ?? change.beats };
+        map[0] = {
+            ...map[0],
+            bpm: map[0].bpm ?? change.bpm,
+            beats: map[0].beats ?? change.beats,
+        };
     }
 
     let message: string | null = null;
@@ -967,7 +1514,10 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
         const range = `Bars ${first}–${last} had ${oldOne} beats.`;
 
         if (delta > 0) {
-            const what = oldOne - change.beats === 1 ? `Each ${ORDINAL[oldOne] ?? `${oldOne}th`} beat moves` : 'The extra beats move';
+            const what =
+                oldOne - change.beats === 1
+                    ? `Each ${ORDINAL[oldOne] ?? `${oldOne}th`} beat moves`
+                    : 'The extra beats move';
             message = `${range} ${what} into new bars ${last + 1}–${last + delta}.`;
         } else if (delta < 0) {
             message = `${range} They join up into ${newCount} bars of ${change.beats}.`;
@@ -977,7 +1527,15 @@ export function applyMapChange(document: ScoreDocument, change: MapChange): { do
     }
 
     return {
-        document: { ...document, bars: document.bars + delta, parts, verses, marks, sections, map },
+        document: {
+            ...document,
+            bars: document.bars + delta,
+            parts,
+            verses,
+            marks,
+            sections,
+            map,
+        },
         message,
     };
 }
@@ -992,7 +1550,12 @@ function endPoint(
 ): { bar: number; beat: number } {
     const moved = move(to.bar, to.beat);
 
-    if (to.bar >= first && to.bar <= last && moved.beat < 1e-6 && moved.bar > first) {
+    if (
+        to.bar >= first &&
+        to.bar <= last &&
+        moved.beat < 1e-6 &&
+        moved.bar > first
+    ) {
         return { bar: moved.bar - 1, beat: beats };
     }
 
@@ -1000,7 +1563,10 @@ function endPoint(
 }
 
 /** Remove a change (not the opening one); bars keep their notes. */
-export function removeMapEvent(document: ScoreDocument, bar: number): ScoreDocument {
+export function removeMapEvent(
+    document: ScoreDocument,
+    bar: number,
+): ScoreDocument {
     if (bar === 1) {
         return document;
     }

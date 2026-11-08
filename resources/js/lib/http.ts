@@ -3,7 +3,9 @@
  * CSRF cookie. Page changes go through Inertia's router instead.
  */
 function xsrf(): string {
-    const match = document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='));
+    const match = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('XSRF-TOKEN='));
 
     return match ? decodeURIComponent(match.slice('XSRF-TOKEN='.length)) : '';
 }
@@ -25,7 +27,9 @@ export async function requestJson<T>(
         body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-    const data = (await response.json().catch(() => ({}))) as T & { message?: string };
+    const data = (await response.json().catch(() => ({}))) as T & {
+        message?: string;
+    };
 
     return { ok: response.ok, status: response.status, data };
 }

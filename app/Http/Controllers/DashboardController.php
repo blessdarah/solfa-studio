@@ -259,10 +259,12 @@ class DashboardController extends Controller
      */
     private function activity(User $user): array
     {
-        return ScoreVersion::query()
+        return array_values(ScoreVersion::query()
             ->where(fn (Builder $query) => $query
                 ->whereHas('score', fn (Builder $score) => $score->where('owner_id', $user->id))
                 ->orWhere('saved_by', $user->id))
+            // Leave out scores that have since been deleted.
+            ->whereHas('score')
             ->with(['score:id,title', 'savedBy:id,name'])
             ->orderByDesc('saved_at')
             ->limit(3)
@@ -286,8 +288,7 @@ class DashboardController extends Controller
                     'score_id' => $version->score_id,
                 ];
             })
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -343,12 +344,11 @@ class DashboardController extends Controller
                     'read' => $notification->read_at !== null,
                 ];
             })
-            ->values()
             ->all();
 
         return [
             'unread' => $user->unreadNotifications()->count(),
-            'items' => $items,
+            'items' => array_values($items),
         ];
     }
 }

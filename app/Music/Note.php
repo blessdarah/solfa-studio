@@ -63,7 +63,10 @@ final readonly class Note implements JsonSerializable
         );
     }
 
-    /** @param array<string, mixed> $data */
+    /**
+     * @param  array<string, mixed>  $data
+     * @return 'over'|'under'|null
+     */
     private static function slurFrom(array $data, string $path): ?string
     {
         $slur = $data['slur'] ?? null;
@@ -118,7 +121,8 @@ final readonly class Note implements JsonSerializable
             $note['tie'] = true;
         }
 
-        if ($this->slur !== null) {
+        // The constructor only lets "over" or "under" through.
+        if ($this->slur === 'over' || $this->slur === 'under') {
             $note['slur'] = $this->slur;
         }
 

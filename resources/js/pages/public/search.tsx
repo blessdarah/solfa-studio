@@ -1,10 +1,20 @@
 import { Head, Link } from '@inertiajs/react';
-import { PublicFooter, PublicTopBar, SongSearch, VoiceTags } from '@/components/public/public-chrome';
+import {
+    PublicFooter,
+    PublicTopBar,
+    SongSearch,
+    VoiceTags,
+} from '@/components/public/public-chrome';
 import { keyLabel } from '@/lib/music';
 import { cn } from '@/lib/utils';
 import type { PublicSearchProps, SearchMatch } from '@/types';
 
-const VOICE_FILTERS: PublicSearchProps['filters']['voices'][] = ['any', 'SATB', 'SA', 'TB'];
+const VOICE_FILTERS: PublicSearchProps['filters']['voices'][] = [
+    'any',
+    'SATB',
+    'SA',
+    'TB',
+];
 
 function url(filters: PublicSearchProps['filters']): string {
     const params = new URLSearchParams();
@@ -22,10 +32,16 @@ function MatchLine({ match }: { match: SearchMatch | null }) {
 
     return (
         <span className="flex min-w-0 items-center gap-1.5">
-            <span className="shrink-0 text-[11px] leading-3.5 font-semibold tracking-[0.06em] text-pencil uppercase">{match.in}</span>
+            <span className="shrink-0 text-[11px] leading-3.5 font-semibold tracking-[0.06em] text-pencil uppercase">
+                {match.in}
+            </span>
             <span className="truncate text-[13.5px] leading-4.5 text-pencil italic">
                 {match.before}
-                {match.match && <mark className="rounded-[3px] bg-marker px-0.75 text-ink">{match.match}</mark>}
+                {match.match && (
+                    <mark className="rounded-[3px] bg-marker px-0.75 text-ink">
+                        {match.match}
+                    </mark>
+                )}
                 {match.after}
             </span>
         </span>
@@ -36,20 +52,41 @@ function MatchLine({ match }: { match: SearchMatch | null }) {
  * Search results (Paper W17): every word must match a title, a composer or
  * the words of a verse; filter by voices and style.
  */
-export default function PublicSearch({ results, total, styles, filters, signed_in }: PublicSearchProps) {
-    const heading = filters.q ? `“${filters.q}”` : filters.style ? filters.style : 'All songs';
+export default function PublicSearch({
+    results,
+    total,
+    styles,
+    filters,
+    signed_in,
+}: PublicSearchProps) {
+    const heading = filters.q
+        ? `“${filters.q}”`
+        : filters.style
+          ? filters.style
+          : 'All songs';
 
     return (
         <>
             <Head title={filters.q ? `${filters.q} · Songs` : 'Songs'} />
 
             <div className="flex min-h-screen flex-col bg-paper">
-                <PublicTopBar signedIn={signed_in} search={<SongSearch key={filters.q} initial={filters.q} size="sm" />} />
+                <PublicTopBar
+                    signedIn={signed_in}
+                    search={
+                        <SongSearch
+                            key={filters.q}
+                            initial={filters.q}
+                            size="sm"
+                        />
+                    }
+                />
 
                 <div className="flex flex-col gap-8 px-4 pt-8 sm:px-10 lg:flex-row lg:gap-10">
                     <aside className="flex shrink-0 flex-col gap-5.5 lg:w-55">
                         <div className="flex flex-col gap-2">
-                            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">VOICES</div>
+                            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                VOICES
+                            </div>
                             <div className="flex flex-wrap gap-1.5">
                                 {VOICE_FILTERS.map((voices) => (
                                     <Link
@@ -58,7 +95,9 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                                         preserveScroll
                                         className={cn(
                                             'flex h-7.5 items-center rounded-full px-3 text-[12.5px] leading-4',
-                                            filters.voices === voices ? 'bg-ink font-semibold text-paper' : 'border border-rule font-solfa text-ink hover:border-ink',
+                                            filters.voices === voices
+                                                ? 'bg-ink font-semibold text-paper'
+                                                : 'border border-rule font-solfa text-ink hover:border-ink',
                                         )}
                                     >
                                         {voices === 'any' ? 'Any' : voices}
@@ -69,14 +108,21 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
 
                         {styles.length > 0 && (
                             <div className="flex flex-col gap-1">
-                                <div className="pb-1 text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">STYLE</div>
+                                <div className="pb-1 text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                    STYLE
+                                </div>
                                 {styles.map((style) => {
-                                    const on = filters.style.toLowerCase() === style.name.toLowerCase();
+                                    const on =
+                                        filters.style.toLowerCase() ===
+                                        style.name.toLowerCase();
 
                                     return (
                                         <Link
                                             key={style.name}
-                                            href={url({ ...filters, style: on ? '' : style.name })}
+                                            href={url({
+                                                ...filters,
+                                                style: on ? '' : style.name,
+                                            })}
                                             preserveScroll
                                             className="flex h-7.5 items-center justify-between gap-2 rounded-[6px] hover:bg-copy/60"
                                         >
@@ -84,14 +130,20 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                                                 <span
                                                     className={cn(
                                                         'flex size-4 items-center justify-center rounded-[4px] text-[10px] leading-3',
-                                                        on ? 'bg-ink text-paper' : 'border-[1.5px] border-rule',
+                                                        on
+                                                            ? 'bg-ink text-paper'
+                                                            : 'border-[1.5px] border-rule',
                                                     )}
                                                 >
                                                     {on ? '✓' : ''}
                                                 </span>
-                                                <span className="text-[13.5px] leading-4.25 text-ink">{style.name}</span>
+                                                <span className="text-[13.5px] leading-4.25 text-ink">
+                                                    {style.name}
+                                                </span>
                                             </span>
-                                            <span className="text-[12px] leading-3.5 text-pencil">{style.count}</span>
+                                            <span className="text-[12px] leading-3.5 text-pencil">
+                                                {style.count}
+                                            </span>
                                         </Link>
                                     );
                                 })}
@@ -99,9 +151,16 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                         )}
 
                         <div className="hidden flex-col gap-1.5 lg:flex">
-                            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">MATCH IN</div>
-                            <div className="text-[13.5px] leading-4.25 text-ink">Titles · Composers · Words</div>
-                            <div className="text-[12px] leading-4.25 text-pencil">Words match anywhere in a verse, so you can search by the line you remember.</div>
+                            <div className="text-[11px] leading-3.5 font-semibold tracking-[0.08em] text-pencil">
+                                MATCH IN
+                            </div>
+                            <div className="text-[13.5px] leading-4.25 text-ink">
+                                Titles · Composers · Words
+                            </div>
+                            <div className="text-[12px] leading-4.25 text-pencil">
+                                Words match anywhere in a verse, so you can
+                                search by the line you remember.
+                            </div>
                         </div>
                     </aside>
 
@@ -111,7 +170,9 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                                 <span className="font-bold">
                                     {total} {total === 1 ? 'song' : 'songs'}
                                 </span>{' '}
-                                {filters.q || filters.style ? `for ${heading}` : ''}
+                                {filters.q || filters.style
+                                    ? `for ${heading}`
+                                    : ''}
                             </h1>
                         </div>
 
@@ -126,9 +187,20 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                                 </span>
                                 <span className="flex min-w-0 grow flex-col gap-1.5">
                                     <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2.5">
-                                        <span className="truncate font-display text-[18px] leading-5.5 font-bold tracking-[-0.01em] text-ink">{song.title}</span>
+                                        <span className="truncate font-display text-[18px] leading-5.5 font-bold tracking-[-0.01em] text-ink">
+                                            {song.title}
+                                        </span>
                                         <span className="truncate text-[13px] leading-4.25 text-pencil">
-                                            {[song.composer, song.arranger ? `arr. ${song.arranger}` : null, song.style, song.owner].filter(Boolean).join(' · ')}
+                                            {[
+                                                song.composer,
+                                                song.arranger
+                                                    ? `arr. ${song.arranger}`
+                                                    : null,
+                                                song.style,
+                                                song.owner,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(' · ')}
                                         </span>
                                     </span>
                                     <MatchLine match={song.match} />
@@ -136,14 +208,21 @@ export default function PublicSearch({ results, total, styles, filters, signed_i
                                 <span className="hidden sm:flex">
                                     <VoiceTags voices={song.voices} />
                                 </span>
-                                <span className="flex h-10 shrink-0 items-center rounded-full bg-ink px-4 text-[13.5px] leading-4.5 font-semibold text-paper">Open</span>
+                                <span className="flex h-10 shrink-0 items-center rounded-full bg-ink px-4 text-[13.5px] leading-4.5 font-semibold text-paper">
+                                    Open
+                                </span>
                             </Link>
                         ))}
 
                         {results.length === 0 && (
                             <div className="flex flex-col items-start gap-2 py-10">
-                                <div className="text-[15px] leading-5 font-semibold text-ink">No songs found</div>
-                                <div className="text-[13.5px] leading-5 text-pencil">Try fewer words, or a line from the song as you remember it.</div>
+                                <div className="text-[15px] leading-5 font-semibold text-ink">
+                                    No songs found
+                                </div>
+                                <div className="text-[13.5px] leading-5 text-pencil">
+                                    Try fewer words, or a line from the song as
+                                    you remember it.
+                                </div>
                             </div>
                         )}
                     </main>

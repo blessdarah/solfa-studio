@@ -81,19 +81,53 @@ export function dohSemitone(doh: string): number {
 }
 
 /** MIDI number of a note once the key is known (middle doh in octave 4). */
-export function midiOf(note: Pick<Note, 'pitch' | 'octave'>, doh: string): number | null {
+export function midiOf(
+    note: Pick<Note, 'pitch' | 'octave'>,
+    doh: string,
+): number | null {
     if (note.pitch === 'rest') {
         return null;
     }
 
-    return 60 + dohSemitone(doh) + PITCH_SEMITONES[note.pitch] + 12 * note.octave;
+    return (
+        60 + dohSemitone(doh) + PITCH_SEMITONES[note.pitch] + 12 * note.octave
+    );
 }
 
-const NOTE_NAMES_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
-const NOTE_NAMES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const NOTE_NAMES_FLAT = [
+    'C',
+    'D♭',
+    'D',
+    'E♭',
+    'E',
+    'F',
+    'G♭',
+    'G',
+    'A♭',
+    'A',
+    'B♭',
+    'B',
+];
+const NOTE_NAMES_SHARP = [
+    'C',
+    'C♯',
+    'D',
+    'D♯',
+    'E',
+    'F',
+    'F♯',
+    'G',
+    'G♯',
+    'A',
+    'A♯',
+    'B',
+];
 
 /** "m" in E♭ → "G". */
-export function soundsLike(note: Pick<Note, 'pitch' | 'octave'>, doh: string): string {
+export function soundsLike(
+    note: Pick<Note, 'pitch' | 'octave'>,
+    doh: string,
+): string {
     const midi = midiOf(note, doh);
 
     if (midi === null) {
@@ -106,7 +140,9 @@ export function soundsLike(note: Pick<Note, 'pitch' | 'octave'>, doh: string): s
 }
 
 /** "s" + low octave → "s₁", two below → "s₂"; high → "s'", two above → "s''". */
-export function noteLabel(note: Pick<Note, 'pitch' | 'octave'> & { tie?: boolean }): string {
+export function noteLabel(
+    note: Pick<Note, 'pitch' | 'octave'> & { tie?: boolean },
+): string {
     // A note held over from the bar before is written as a hold.
     if (note.tie) {
         return '–';
@@ -153,9 +189,13 @@ export function onThird(at: number): boolean {
 
 /** A beat split into three (a triplet: f,f,f) — some note starts on a third of it. */
 function isTriplet(notes: Note[], beat: number, cursorAt?: number): boolean {
-    const third = (at: number) => at > beat + EPS && at < beat + 1 - EPS && onThird(at);
+    const third = (at: number) =>
+        at > beat + EPS && at < beat + 1 - EPS && onThird(at);
 
-    return notes.some((n) => third(n.start)) || (cursorAt !== undefined && third(cursorAt));
+    return (
+        notes.some((n) => third(n.start)) ||
+        (cursorAt !== undefined && third(cursorAt))
+    );
 }
 
 /** What sits at `at` inside a triplet: the note starting there, "–" for one held over it, or nothing. */
@@ -164,7 +204,9 @@ function thirdText(notes: Note[], at: number): string {
 
     if (starting) return noteLabel(starting);
 
-    const held = notes.find((n) => n.start < at - 1e-4 && n.start + n.length > at + 1e-4);
+    const held = notes.find(
+        (n) => n.start < at - 1e-4 && n.start + n.length > at + 1e-4,
+    );
 
     return held && held.pitch !== 'rest' ? '–' : '';
 }
@@ -172,7 +214,9 @@ function thirdText(notes: Note[], at: number): string {
 function beatToken(notes: Note[], beat: number): string {
     // Thirds: "f,f,f", "d,–,r".
     if (isTriplet(notes, beat)) {
-        return [0, THIRD, 2 * THIRD].map((o) => thirdText(notes, beat + o)).join(',');
+        return [0, THIRD, 2 * THIRD]
+            .map((o) => thirdText(notes, beat + o))
+            .join(',');
     }
 
     let token = '';
@@ -183,14 +227,25 @@ function beatToken(notes: Note[], beat: number): string {
 
         if (starting) {
             // ".," marks the last quarter after a note held through the half: d.,r
-            const afterHeldHalf = offset === 0.75 && !notes.some((n) => Math.abs(n.start - (beat + 0.5)) < EPS);
-            const sep = offset === 0 ? '' : offset === 0.5 ? '.' : afterHeldHalf ? '.,' : ',';
+            const afterHeldHalf =
+                offset === 0.75 &&
+                !notes.some((n) => Math.abs(n.start - (beat + 0.5)) < EPS);
+            const sep =
+                offset === 0
+                    ? ''
+                    : offset === 0.5
+                      ? '.'
+                      : afterHeldHalf
+                        ? '.,'
+                        : ',';
             token += sep + noteLabel(starting);
             continue;
         }
 
         if (offset === 0) {
-            const held = notes.find((n) => n.start < at - EPS && n.start + n.length > at + EPS);
+            const held = notes.find(
+                (n) => n.start < at - EPS && n.start + n.length > at + EPS,
+            );
 
             if (held && held.pitch !== 'rest') {
                 token += '–';
@@ -205,16 +260,25 @@ function beatToken(notes: Note[], beat: number): string {
  * Each beat as "separator + token + padding", so the four parts' columns
  * line up: `d :d  ¦ r :m`, `s₁:t₁ ¦ d :r`, `s :–.l¦ s :m`, `s :f :m`.
  */
-function pieces(tokens: string[], beats: number, padTo: number): { sep: string; token: string; pad: string }[] {
+function pieces(
+    tokens: string[],
+    beats: number,
+    padTo: number,
+): { sep: string; token: string; pad: string }[] {
     const half = halfBarAt(beats);
 
     return tokens.map((token, i) => {
         const sep = i === 0 ? '' : half !== null && i === half ? '¦ ' : ':';
         const isLast = i === tokens.length - 1;
-        const width = half !== null && i + 1 === half ? Math.max(padTo, 3) : padTo;
-        const length = [...token].length;
+        const width =
+            half !== null && i + 1 === half ? Math.max(padTo, 3) : padTo;
+        const length = Array.from(token).length;
 
-        return { sep, token, pad: isLast || length >= width ? '' : ' '.repeat(width - length) };
+        return {
+            sep,
+            token,
+            pad: isLast || length >= width ? '' : ' '.repeat(width - length),
+        };
     });
 }
 
@@ -227,9 +291,14 @@ function tokensOf(notes: Note[], beats: number): string[] {
  * sit (a note, a "–" hold, or an empty beat) and carry the beat they are at;
  * `sep` and `pad` are the ":" "¦" "." "," marks and alignment spaces.
  */
-export type BarSegment = { kind: 'slot' | 'sep' | 'pad'; text: string; at: number };
+export type BarSegment = {
+    kind: 'slot' | 'sep' | 'pad';
+    text: string;
+    at: number;
+};
 
-const INNER_SEP = (offset: number, halfTaken: boolean) => (offset === 0.5 ? '.' : offset === 0.75 && !halfTaken ? '.,' : ',');
+const INNER_SEP = (offset: number, halfTaken: boolean) =>
+    offset === 0.5 ? '.' : offset === 0.75 && !halfTaken ? '.,' : ',';
 
 /**
  * The bar as clickable pieces, so a note inside a beat (the "t" of "d.t")
@@ -237,45 +306,86 @@ const INNER_SEP = (offset: number, halfTaken: boolean) => (offset === 0.5 ? '.' 
  * formatBar's. With `cursorAt` on an empty spot inside a beat (just after
  * "."), an empty slot is added there so the cursor has somewhere to show.
  */
-export function barSegments(notes: Note[], beats: number, cursorAt?: number): BarSegment[] {
+export function barSegments(
+    notes: Note[],
+    beats: number,
+    cursorAt?: number,
+): BarSegment[] {
     const half = halfBarAt(beats);
     const out: BarSegment[] = [];
 
     for (let beat = 0; beat < beats; beat++) {
-        if (beat > 0) out.push({ kind: 'sep', text: half !== null && beat === half ? '¦ ' : ':', at: beat });
+        if (beat > 0)
+            out.push({
+                kind: 'sep',
+                text: half !== null && beat === half ? '¦ ' : ':',
+                at: beat,
+            });
 
         const startOfBeat = out.length;
 
         if (isTriplet(notes, beat, cursorAt)) {
             [0, THIRD, 2 * THIRD].forEach((o, i) => {
                 if (i > 0) out.push({ kind: 'sep', text: ',', at: beat + o });
-                out.push({ kind: 'slot', text: thirdText(notes, beat + o), at: beat + o });
+                out.push({
+                    kind: 'slot',
+                    text: thirdText(notes, beat + o),
+                    at: beat + o,
+                });
             });
         }
 
-        for (const offset of isTriplet(notes, beat, cursorAt) ? [] : [0, 0.25, 0.5, 0.75]) {
+        for (const offset of isTriplet(notes, beat, cursorAt)
+            ? []
+            : [0, 0.25, 0.5, 0.75]) {
             const at = beat + offset;
             const starting = notes.find((n) => Math.abs(n.start - at) < EPS);
-            const halfTaken = notes.some((n) => Math.abs(n.start - (beat + 0.5)) < EPS);
+            const halfTaken = notes.some(
+                (n) => Math.abs(n.start - (beat + 0.5)) < EPS,
+            );
 
             if (offset === 0) {
-                const held = notes.find((n) => n.start < at - EPS && n.start + n.length > at + EPS);
-                const text = starting ? noteLabel(starting) : held && held.pitch !== 'rest' ? '–' : '';
+                const held = notes.find(
+                    (n) => n.start < at - EPS && n.start + n.length > at + EPS,
+                );
+                const text = starting
+                    ? noteLabel(starting)
+                    : held && held.pitch !== 'rest'
+                      ? '–'
+                      : '';
                 out.push({ kind: 'slot', text, at });
                 continue;
             }
 
-            if (starting || (cursorAt !== undefined && Math.abs(cursorAt - at) < EPS)) {
-                out.push({ kind: 'sep', text: INNER_SEP(offset, halfTaken), at });
-                out.push({ kind: 'slot', text: starting ? noteLabel(starting) : '', at });
+            if (
+                starting ||
+                (cursorAt !== undefined && Math.abs(cursorAt - at) < EPS)
+            ) {
+                out.push({
+                    kind: 'sep',
+                    text: INNER_SEP(offset, halfTaken),
+                    at,
+                });
+                out.push({
+                    kind: 'slot',
+                    text: starting ? noteLabel(starting) : '',
+                    at,
+                });
             }
         }
 
-        const length = out.slice(startOfBeat).reduce((n, seg) => n + [...seg.text].length, 0);
+        const length = out
+            .slice(startOfBeat)
+            .reduce((n, seg) => n + Array.from(seg.text).length, 0);
         const isLast = beat === beats - 1;
         const width = half !== null && beat + 1 === half ? 3 : 2;
 
-        if (!isLast && length < width) out.push({ kind: 'pad', text: ' '.repeat(width - length), at: beat });
+        if (!isLast && length < width)
+            out.push({
+                kind: 'pad',
+                text: ' '.repeat(width - length),
+                at: beat,
+            });
     }
 
     return out;
@@ -309,8 +419,17 @@ export function splitBarAt(
     const index = Math.min(beats - 1, Math.max(0, Math.floor(beat + EPS)));
     const all = pieces(tokensOf(notes, beats), beats, 2);
 
-    const before = all.slice(0, index).map((p) => p.sep + p.token + p.pad).join('') + all[index].sep;
-    const after = all[index].pad + all.slice(index + 1).map((p) => p.sep + p.token + p.pad).join('');
+    const before =
+        all
+            .slice(0, index)
+            .map((p) => p.sep + p.token + p.pad)
+            .join('') + all[index].sep;
+    const after =
+        all[index].pad +
+        all
+            .slice(index + 1)
+            .map((p) => p.sep + p.token + p.pad)
+            .join('');
 
     return { before, at: all[index].token, after };
 }
@@ -325,7 +444,11 @@ export function tempoAt(map: MapEvent[], bar: number): number {
     return mapValueAt(map, bar, (e) => e.bpm);
 }
 
-function mapValueAt(map: MapEvent[], bar: number, pick: (e: MapEvent) => number | null): number {
+function mapValueAt(
+    map: MapEvent[],
+    bar: number,
+    pick: (e: MapEvent) => number | null,
+): number {
     let value = 0;
 
     for (const event of map) {
@@ -359,13 +482,22 @@ export function tempoName(bpm: number): string {
 }
 
 /** The note sounding in `part` at `bar`/`beat` (starting there or held over it). */
-export function noteAt(part: Part | undefined, bar: number, beat: number): Note | undefined {
+export function noteAt(
+    part: Part | undefined,
+    bar: number,
+    beat: number,
+): Note | undefined {
     const notes = part?.bars[bar - 1]?.notes ?? [];
 
-    return notes.find((n) => n.start <= beat + EPS && n.start + n.length > beat + EPS);
+    return notes.find(
+        (n) => n.start <= beat + EPS && n.start + n.length > beat + EPS,
+    );
 }
 
-export function partOf(document: ScoreDocument, voice: Voice): Part | undefined {
+export function partOf(
+    document: ScoreDocument,
+    voice: Voice,
+): Part | undefined {
     return document.parts.find((p) => p.id === voice);
 }
 
@@ -436,10 +568,15 @@ export function chordHint(
     }
 
     const root = chord.tones[0];
-    const missing = sounding.filter((s) => s.note === undefined || s.note.pitch === 'rest');
+    const missing = sounding.filter(
+        (s) => s.note === undefined || s.note.pitch === 'rest',
+    );
     const fill = missing
         .filter((s) => s.voice === 'T' || s.voice === 'B')
-        .map((s) => `${VOICE_NAMES[s.voice].toLowerCase()} on ${s.voice === 'B' ? `${root}₁` : root}`);
+        .map(
+            (s) =>
+                `${VOICE_NAMES[s.voice].toLowerCase()} on ${s.voice === 'B' ? `${root}₁` : root}`,
+        );
 
     let text = `${chord.name} so far (${chord.tones.join(' · ')}).`;
 
@@ -457,7 +594,10 @@ export function systemsOf(bars: number, perSystem = 4): number[][] {
 
     for (let start = 1; start <= bars; start += perSystem) {
         systems.push(
-            Array.from({ length: Math.min(perSystem, bars - start + 1) }, (_, i) => start + i),
+            Array.from(
+                { length: Math.min(perSystem, bars - start + 1) },
+                (_, i) => start + i,
+            ),
         );
     }
 
@@ -473,13 +613,17 @@ export type PlayStep = { bar: number; pass: Pass };
 
 /** The pass a bar is limited to ("1st time" or "D.S. time"), or null if it always plays. */
 export function barPass(document: ScoreDocument, bar: number): Pass | null {
-    const section = document.sections.find((s) => s.ending !== null && bar >= s.from && bar <= s.to);
+    const section = document.sections.find(
+        (s) => s.ending !== null && bar >= s.from && bar <= s.to,
+    );
 
     return section ? (section.ending === 1 ? 1 : 2) : null;
 }
 
 function navAt(document: ScoreDocument, bar: number, value: string): boolean {
-    return document.marks.some((m) => m.kind === 'nav' && m.value === value && m.at.bar === bar);
+    return document.marks.some(
+        (m) => m.kind === 'nav' && m.value === value && m.at.bar === bar,
+    );
 }
 
 /**
@@ -487,9 +631,14 @@ function navAt(document: ScoreDocument, bar: number, value: string): boolean {
  * to the $ sign (D.C.: to the start), skip "1st time" bars on the way
  * back and play the "D.S. time" bars instead, and stop at Fine.
  */
-export function performanceOrder(document: ScoreDocument, fromBar: number): PlayStep[] {
+export function performanceOrder(
+    document: ScoreDocument,
+    fromBar: number,
+): PlayStep[] {
     const steps: PlayStep[] = [];
-    const segno = document.marks.find((m) => m.kind === 'nav' && m.value === '$')?.at.bar ?? 1;
+    const segno =
+        document.marks.find((m) => m.kind === 'nav' && m.value === '$')?.at
+            .bar ?? 1;
     let pass: Pass = barPass(document, fromBar) === 2 ? 2 : 1;
     let bar = fromBar;
 
@@ -503,7 +652,10 @@ export function performanceOrder(document: ScoreDocument, fromBar: number): Play
 
         steps.push({ bar, pass });
 
-        if (pass === 1 && (navAt(document, bar, 'DS') || navAt(document, bar, 'DC'))) {
+        if (
+            pass === 1 &&
+            (navAt(document, bar, 'DS') || navAt(document, bar, 'DC'))
+        ) {
             pass = 2;
             bar = navAt(document, bar, 'DS') ? segno : 1;
             continue;
@@ -534,23 +686,44 @@ const WORD_CHAR = 6.6; // Inter italic at 13px, roughly
 /** Bar sizing: the narrowest a bar may be, and room kept for the cursor chip (none on paper). */
 export type BarSizing = { min?: number; chip?: number };
 
-export function barWidth(document: ScoreDocument, barNo: number, sizing: BarSizing = {}): number {
+export function barWidth(
+    document: ScoreDocument,
+    barNo: number,
+    sizing: BarSizing = {},
+): number {
     const beats = beatsInBar(document.map, barNo);
-    const notes = Math.max(0, ...document.parts.map((p) => [...formatBar(p.bars[barNo - 1]?.notes ?? [], beats)].length));
+    const notes = Math.max(
+        0,
+        ...document.parts.map(
+            (p) =>
+                Array.from(formatBar(p.bars[barNo - 1]?.notes ?? [], beats))
+                    .length,
+        ),
+    );
     // Words sit under their notes; the bar must reach the end of the last one.
     const words = Math.max(
         0,
         ...document.verses.flatMap((v) =>
             VOICES.map((voice) => {
-                const inBar = v.syllables.filter((s) => s.part === voice && s.bar === barNo);
-                const placed = placeSyllables(partOf(document, voice)?.bars[barNo - 1]?.notes ?? [], beats, inBar, SOLFA_CHAR);
+                const inBar = v.syllables.filter(
+                    (s) => s.part === voice && s.bar === barNo,
+                );
+                const placed = placeSyllables(
+                    partOf(document, voice)?.bars[barNo - 1]?.notes ?? [],
+                    beats,
+                    inBar,
+                    SOLFA_CHAR,
+                );
                 const last = placed[placed.length - 1];
 
                 return last ? last.x + last.width + 12 : 0;
             }),
         ),
     );
-    const needed = BAR_PAD + Math.max(notes * SOLFA_CHAR + (sizing.chip ?? CHIP_ROOM), words) + 6;
+    const needed =
+        BAR_PAD +
+        Math.max(notes * SOLFA_CHAR + (sizing.chip ?? CHIP_ROOM), words) +
+        6;
 
     return Math.max(sizing.min ?? BAR_MIN_WIDTH, Math.ceil(needed));
 }
@@ -563,7 +736,11 @@ export type SheetLine = { bars: number[]; widths: number[] };
  * ends and that bar starts the next one. A line that ends early is spread
  * to the full width; the last line keeps its natural widths.
  */
-export function layoutLines(document: ScoreDocument, lineWidth = LINE_WIDTH, sizing: BarSizing = {}): SheetLine[] {
+export function layoutLines(
+    document: ScoreDocument,
+    lineWidth = LINE_WIDTH,
+    sizing: BarSizing = {},
+): SheetLine[] {
     const lines: SheetLine[] = [];
     let line: SheetLine = { bars: [], widths: [] };
     let used = 0;
@@ -592,7 +769,8 @@ export function layoutLines(document: ScoreDocument, lineWidth = LINE_WIDTH, siz
 
         const extra = lineWidth - total;
         const widths = l.widths.map((w) => Math.floor(w + (extra * w) / total));
-        widths[widths.length - 1] += lineWidth - widths.reduce((a, b) => a + b, 0);
+        widths[widths.length - 1] +=
+            lineWidth - widths.reduce((a, b) => a + b, 0);
 
         return { ...l, widths };
     });
@@ -611,17 +789,30 @@ let measurer: CanvasRenderingContext2D | null | undefined;
 export function wordWidth(text: string): number {
     if (measurer === undefined) {
         try {
-            measurer = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
-            if (measurer) measurer.font = 'italic 13px Inter, ui-sans-serif, system-ui, sans-serif';
+            measurer =
+                typeof document !== 'undefined'
+                    ? document.createElement('canvas').getContext('2d')
+                    : null;
+            if (measurer)
+                measurer.font =
+                    'italic 13px Inter, ui-sans-serif, system-ui, sans-serif';
         } catch {
             measurer = null;
         }
     }
 
-    return measurer ? measurer.measureText(text).width : [...text].length * WORD_CHAR;
+    return measurer
+        ? measurer.measureText(text).width
+        : Array.from(text).length * WORD_CHAR;
 }
 
-export type PlacedSyllable = { text: string; x: number; width: number; join: Syllable['join']; beat: number };
+export type PlacedSyllable = {
+    text: string;
+    x: number;
+    width: number;
+    join: Syllable['join'];
+    beat: number;
+};
 
 const WORD_GAP = 7;
 
@@ -630,20 +821,28 @@ const WORD_GAP = 7;
  * note's place in the sol-fa text (`charWidth` per character) — and, when a
  * long word would run into the next, pushed just far enough along to read.
  */
-export function placeSyllables(notes: Note[], beats: number, syllables: Syllable[], charWidth: number): PlacedSyllable[] {
+export function placeSyllables(
+    notes: Note[],
+    beats: number,
+    syllables: Syllable[],
+    charWidth: number,
+): PlacedSyllable[] {
     const columns: { at: number; col: number }[] = [];
     let col = 0;
 
     for (const piece of barSegments(notes, beats)) {
-        if (piece.kind === 'slot' && piece.text !== '') columns.push({ at: piece.at, col });
-        col += [...piece.text].length;
+        if (piece.kind === 'slot' && piece.text !== '')
+            columns.push({ at: piece.at, col });
+        col += Array.from(piece.text).length;
     }
 
     const placed: PlacedSyllable[] = [];
     let end = -WORD_GAP;
 
     for (const s of [...syllables].sort((a, b) => a.beat - b.beat)) {
-        const column = columns.find((c) => Math.abs(c.at - s.beat) < 1e-4)?.col ?? (s.beat / Math.max(1, beats)) * col;
+        const column =
+            columns.find((c) => Math.abs(c.at - s.beat) < 1e-4)?.col ??
+            (s.beat / Math.max(1, beats)) * col;
         const text = s.join === 'split' ? `${s.text}–` : s.text;
         const width = wordWidth(text);
         const x = Math.max(column * charWidth, end + WORD_GAP);

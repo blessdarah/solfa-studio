@@ -170,7 +170,7 @@ class PublicController extends Controller
      */
     private function styles(): array
     {
-        return Score::query()->listedPublicly()
+        return array_values(Score::query()->listedPublicly()
             ->get(['id', 'published'])
             ->groupBy(fn (Score $score) => Str::ucfirst((string) ($score->published['document']['style'] ?? '')) ?: 'Other')
             ->map(function (Collection $group, string $name): array {
@@ -182,7 +182,6 @@ class PublicController extends Controller
             })
             ->sortByDesc('count')
             ->take(6)
-            ->values()
-            ->all();
+            ->all());
     }
 }

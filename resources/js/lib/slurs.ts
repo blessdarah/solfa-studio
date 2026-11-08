@@ -10,7 +10,14 @@
  */
 import { partOf } from '@/lib/music';
 import type { Cursor } from '@/lib/editor';
-import type { Note, Part, ScoreDocument, SlurPlace, Syllable, Voice } from '@/types/score';
+import type {
+    Note,
+    Part,
+    ScoreDocument,
+    SlurPlace,
+    Syllable,
+    Voice,
+} from '@/types/score';
 
 const EPS = 1e-6;
 
@@ -18,7 +25,12 @@ const EPS = 1e-6;
 export type Placed = { bar: number; note: Note };
 
 /** One slur: its first and last note, how many notes it covers, where it is drawn. */
-export type SlurRun = { from: { bar: number; beat: number }; to: { bar: number; beat: number }; notes: number; place: SlurPlace };
+export type SlurRun = {
+    from: { bar: number; beat: number };
+    to: { bar: number; beat: number };
+    notes: number;
+    place: SlurPlace;
+};
 
 /** Every note that is struck, in order — a tied note just carries on the one before, so it isn't one. */
 export function noteSequence(part: Part | undefined): Placed[] {
@@ -32,20 +44,32 @@ export function noteSequence(part: Part | undefined): Placed[] {
     );
 }
 
-const sounds = (p: Placed | undefined): p is Placed => !!p && p.note.pitch !== 'rest';
+const sounds = (p: Placed | undefined): p is Placed =>
+    !!p && p.note.pitch !== 'rest';
 
 /** Index in `seq` of the note at (bar, beat): starting there, or sounding over it. */
 function indexAt(seq: Placed[], bar: number, beat: number): number {
-    const exact = seq.findIndex((p) => p.bar === bar && Math.abs(p.note.start - beat) < EPS);
+    const exact = seq.findIndex(
+        (p) => p.bar === bar && Math.abs(p.note.start - beat) < EPS,
+    );
 
     if (exact >= 0) return exact;
 
     // The note just typed ends where the cursor is.
-    const ending = seq.findIndex((p) => p.bar === bar && Math.abs(p.note.start + p.note.length - beat) < EPS);
+    const ending = seq.findIndex(
+        (p) =>
+            p.bar === bar &&
+            Math.abs(p.note.start + p.note.length - beat) < EPS,
+    );
 
     if (ending >= 0) return ending;
 
-    const covering = seq.findIndex((p) => p.bar === bar && p.note.start < beat && p.note.start + p.note.length > beat);
+    const covering = seq.findIndex(
+        (p) =>
+            p.bar === bar &&
+            p.note.start < beat &&
+            p.note.start + p.note.length > beat,
+    );
 
     if (covering >= 0 || beat > EPS) return covering;
 
@@ -54,11 +78,15 @@ function indexAt(seq: Placed[], bar: number, beat: number): number {
 }
 
 /** The slur through note `i`: indexes of its first and last notes, or null when the note isn't slurred. */
-function runThrough(seq: Placed[], i: number): { first: number; last: number } | null {
+function runThrough(
+    seq: Placed[],
+    i: number,
+): { first: number; last: number } | null {
     if (!sounds(seq[i])) return null;
 
     let first = i;
-    while (first > 0 && seq[first - 1].note.slur && sounds(seq[first - 1])) first--;
+    while (first > 0 && seq[first - 1].note.slur && sounds(seq[first - 1]))
+        first--;
 
     let last = i;
     while (seq[last].note.slur && sounds(seq[last + 1])) last++;
@@ -75,7 +103,8 @@ export function slurRuns(part: Part | undefined): SlurRun[] {
     const runs: SlurRun[] = [];
 
     for (let i = 0; i < seq.length; i++) {
-        if (!seq[i].note.slur || !sounds(seq[i]) || !sounds(seq[i + 1])) continue;
+        if (!seq[i].note.slur || !sounds(seq[i]) || !sounds(seq[i + 1]))
+            continue;
 
         let last = i;
         while (seq[last].note.slur && sounds(seq[last + 1])) last++;
@@ -93,7 +122,10 @@ export function slurRuns(part: Part | undefined): SlurRun[] {
 }
 
 /** The slur the note at the cursor belongs to, if any. */
-export function slurAt(document: ScoreDocument, cursor: Cursor): SlurRun | null {
+export function slurAt(
+    document: ScoreDocument,
+    cursor: Cursor,
+): SlurRun | null {
     const seq = noteSequence(partOf(document, cursor.part));
     const run = runThrough(seq, indexAt(seq, cursor.bar, cursor.beat));
 
@@ -116,9 +148,14 @@ export function slurredOn(part: Part | undefined): Set<string> {
     const seq = noteSequence(part);
 
     for (const run of slurRuns(part)) {
-        const start = seq.findIndex((p) => p.bar === run.from.bar && Math.abs(p.note.start - run.from.beat) < EPS);
+        const start = seq.findIndex(
+            (p) =>
+                p.bar === run.from.bar &&
+                Math.abs(p.note.start - run.from.beat) < EPS,
+        );
 
-        for (let i = start + 1; i < start + run.notes; i++) keys.add(slotKey(seq[i].bar, seq[i].note.start));
+        for (let i = start + 1; i < start + run.notes; i++)
+            keys.add(slotKey(seq[i].bar, seq[i].note.start));
     }
 
     return keys;
@@ -129,12 +166,18 @@ export function slurStarts(part: Part | undefined): Set<string> {
     return new Set(slurRuns(part).map((r) => slotKey(r.from.bar, r.from.beat)));
 }
 
-export const slotKey = (bar: number, beat: number) => `${bar}:${Math.round(beat * 1e4) / 1e4}`;
+export const slotKey = (bar: number, beat: number) =>
+    `${bar}:${Math.round(beat * 1e4) / 1e4}`;
 
 // ------------------------------------------------------------------ edits
 
 /** Change the given notes (by place in the sequence) of one part. */
-function changeNotes(document: ScoreDocument, voice: Voice, targets: Placed[], change: (note: Note) => Note): ScoreDocument {
+function changeNotes(
+    document: ScoreDocument,
+    voice: Voice,
+    targets: Placed[],
+    change: (note: Note) => Note,
+): ScoreDocument {
     if (targets.length === 0) return document;
 
     const set = new Set(targets.map((t) => t.note));
@@ -144,7 +187,19 @@ function changeNotes(document: ScoreDocument, voice: Voice, targets: Placed[], c
         parts: document.parts.map((part) =>
             part.id !== voice
                 ? part
-                : { ...part, bars: part.bars.map((bar) => (bar.notes.some((n) => set.has(n)) ? { ...bar, notes: bar.notes.map((n) => (set.has(n) ? change(n) : n)) } : bar)) },
+                : {
+                      ...part,
+                      bars: part.bars.map((bar) =>
+                          bar.notes.some((n) => set.has(n))
+                              ? {
+                                    ...bar,
+                                    notes: bar.notes.map((n) =>
+                                        set.has(n) ? change(n) : n,
+                                    ),
+                                }
+                              : bar,
+                      ),
+                  },
         ),
     };
 }
@@ -154,7 +209,10 @@ function changeNotes(document: ScoreDocument, voice: Voice, targets: Placed[], c
  * in a slur, stretch that slur over one more note. Right after typing a
  * note, the slur waits for the next note you type: s ( l ( s.
  */
-export function extendSlur(document: ScoreDocument, cursor: Cursor): ScoreDocument {
+export function extendSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+): ScoreDocument {
     const seq = noteSequence(partOf(document, cursor.part));
     const i = indexAt(seq, cursor.bar, cursor.beat);
 
@@ -171,11 +229,17 @@ export function extendSlur(document: ScoreDocument, cursor: Cursor): ScoreDocume
     const next = seq[last + 1];
     if (sounds(next) && samePitch(seq[last].note, next.note)) return document;
 
-    return changeNotes(document, cursor.part, [seq[last]], (n) => ({ ...n, slur: place }));
+    return changeNotes(document, cursor.part, [seq[last]], (n) => ({
+        ...n,
+        slur: place,
+    }));
 }
 
 /** ")": take the last note off the slur at the cursor (a two-note slur goes). */
-export function shortenSlur(document: ScoreDocument, cursor: Cursor): ScoreDocument {
+export function shortenSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+): ScoreDocument {
     const seq = noteSequence(partOf(document, cursor.part));
     const run = runThrough(seq, indexAt(seq, cursor.bar, cursor.beat));
 
@@ -184,21 +248,38 @@ export function shortenSlur(document: ScoreDocument, cursor: Cursor): ScoreDocum
     // A slur still waiting for its next note just stops waiting.
     const target = seq[run.last].note.slur ? seq[run.last] : seq[run.last - 1];
 
-    return changeNotes(document, cursor.part, target ? [target] : [], ({ slur: _slur, ...n }) => n);
+    return changeNotes(
+        document,
+        cursor.part,
+        target ? [target] : [],
+        ({ slur: _slur, ...n }) => n,
+    );
 }
 
 /** Take the slur at the cursor away completely. */
-export function removeSlur(document: ScoreDocument, cursor: Cursor): ScoreDocument {
+export function removeSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+): ScoreDocument {
     const seq = noteSequence(partOf(document, cursor.part));
     const run = runThrough(seq, indexAt(seq, cursor.bar, cursor.beat));
 
     if (!run) return document;
 
-    return changeNotes(document, cursor.part, seq.slice(run.first, run.last + 1), ({ slur: _slur, ...n }) => n);
+    return changeNotes(
+        document,
+        cursor.part,
+        seq.slice(run.first, run.last + 1),
+        ({ slur: _slur, ...n }) => n,
+    );
 }
 
 /** Draw the slur at the cursor over or under its notes. */
-export function placeSlur(document: ScoreDocument, cursor: Cursor, place: SlurPlace): ScoreDocument {
+export function placeSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+    place: SlurPlace,
+): ScoreDocument {
     const seq = noteSequence(partOf(document, cursor.part));
     const run = runThrough(seq, indexAt(seq, cursor.bar, cursor.beat));
 
@@ -212,34 +293,54 @@ export function placeSlur(document: ScoreDocument, cursor: Cursor, place: SlurPl
     );
 }
 
-const samePitch = (a: Note, b: Note) => a.pitch === b.pitch && a.octave === b.octave;
+const samePitch = (a: Note, b: Note) =>
+    a.pitch === b.pitch && a.octave === b.octave;
 
 /**
  * The note just before the cursor, when it is waiting to be slurred on and
  * sounds right up to the cursor — so typing the same pitch next can become
  * a hold (d ( d is d :–).
  */
-export function waitingSlur(document: ScoreDocument, cursor: Cursor): Note | null {
+export function waitingSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+): Note | null {
     const seq = noteSequence(partOf(document, cursor.part));
-    const before = [...seq].reverse().find((p) => p.bar < cursor.bar || (p.bar === cursor.bar && p.note.start < cursor.beat - EPS));
+    const before = [...seq]
+        .reverse()
+        .find(
+            (p) =>
+                p.bar < cursor.bar ||
+                (p.bar === cursor.bar && p.note.start < cursor.beat - EPS),
+        );
 
     if (!before?.note.slur || !sounds(before)) return null;
 
-    const sameBar = before.bar === cursor.bar && Math.abs(before.note.start + before.note.length - cursor.beat) < EPS;
+    const sameBar =
+        before.bar === cursor.bar &&
+        Math.abs(before.note.start + before.note.length - cursor.beat) < EPS;
     const overBarLine = before.bar === cursor.bar - 1 && cursor.beat < EPS;
 
     return sameBar || overBarLine ? before.note : null;
 }
 
 /** Stop the note before the cursor waiting for a slur. */
-export function dropWaitingSlur(document: ScoreDocument, cursor: Cursor): ScoreDocument {
+export function dropWaitingSlur(
+    document: ScoreDocument,
+    cursor: Cursor,
+): ScoreDocument {
     const note = waitingSlur(document, cursor);
 
     if (!note) return document;
 
     const seq = noteSequence(partOf(document, cursor.part));
 
-    return changeNotes(document, cursor.part, seq.filter((p) => p.note === note), ({ slur: _slur, ...n }) => n);
+    return changeNotes(
+        document,
+        cursor.part,
+        seq.filter((p) => p.note === note),
+        ({ slur: _slur, ...n }) => n,
+    );
 }
 
 /**
@@ -247,19 +348,31 @@ export function dropWaitingSlur(document: ScoreDocument, cursor: Cursor): ScoreD
  * the next free note, pushing the words after them along only as far as
  * they must. The syllable on the slur's first note is held over it.
  */
-export function followSlurs(document: ScoreDocument, voice: Voice): ScoreDocument {
+export function followSlurs(
+    document: ScoreDocument,
+    voice: Voice,
+): ScoreDocument {
     const part = partOf(document, voice);
     const inside = slurredOn(part);
     const starts = slurStarts(part);
     const slots = noteSequence(part)
-        .filter((p) => p.note.pitch !== 'rest' && !inside.has(slotKey(p.bar, p.note.start)))
+        .filter(
+            (p) =>
+                p.note.pitch !== 'rest' &&
+                !inside.has(slotKey(p.bar, p.note.start)),
+        )
         .map((p) => ({ bar: p.bar, beat: p.note.start }));
 
-    const order = (a: { bar: number; beat: number }, b: { bar: number; beat: number }) => a.bar - b.bar || a.beat - b.beat;
+    const order = (
+        a: { bar: number; beat: number },
+        b: { bar: number; beat: number },
+    ) => a.bar - b.bar || a.beat - b.beat;
     let changed = false;
 
     const verses = document.verses.map((verse): typeof verse | null => {
-        const mine = verse.syllables.filter((s) => s.part === voice).sort(order);
+        const mine = verse.syllables
+            .filter((s) => s.part === voice)
+            .sort(order);
         const others = verse.syllables.filter((s) => s.part !== voice);
 
         if (mine.length === 0) return verse;
@@ -276,12 +389,19 @@ export function followSlurs(document: ScoreDocument, voice: Voice): ScoreDocumen
             if (k >= slots.length) return null;
 
             const slot = slots[k];
-            const join = starts.has(slotKey(slot.bar, slot.beat)) ? 'hold' : s.join;
-            const moved = slot.bar !== s.bar || Math.abs(slot.beat - s.beat) > EPS || join !== s.join;
+            const join = starts.has(slotKey(slot.bar, slot.beat))
+                ? 'hold'
+                : s.join;
+            const moved =
+                slot.bar !== s.bar ||
+                Math.abs(slot.beat - s.beat) > EPS ||
+                join !== s.join;
 
             if (moved) changed = true;
 
-            placed.push(moved ? { ...s, bar: slot.bar, beat: slot.beat, join } : s);
+            placed.push(
+                moved ? { ...s, bar: slot.bar, beat: slot.beat, join } : s,
+            );
             next = k + 1;
         }
 
@@ -290,13 +410,26 @@ export function followSlurs(document: ScoreDocument, voice: Voice): ScoreDocumen
 
     if (!changed) return document;
 
-    return { ...document, verses: verses.map((v, i) => v ?? document.verses[i]) };
+    return {
+        ...document,
+        verses: verses.map((v, i) => v ?? document.verses[i]),
+    };
 }
 
 /** The notes a slur covers, in order. */
-export function slurNotes(document: ScoreDocument, voice: Voice, run: SlurRun): Note[] {
+export function slurNotes(
+    document: ScoreDocument,
+    voice: Voice,
+    run: SlurRun,
+): Note[] {
     const seq = noteSequence(partOf(document, voice));
-    const start = seq.findIndex((p) => p.bar === run.from.bar && Math.abs(p.note.start - run.from.beat) < EPS);
+    const start = seq.findIndex(
+        (p) =>
+            p.bar === run.from.bar &&
+            Math.abs(p.note.start - run.from.beat) < EPS,
+    );
 
-    return start < 0 ? [] : seq.slice(start, start + run.notes).map((p) => p.note);
+    return start < 0
+        ? []
+        : seq.slice(start, start + run.notes).map((p) => p.note);
 }

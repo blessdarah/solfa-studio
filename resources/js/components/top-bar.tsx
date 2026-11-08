@@ -20,20 +20,36 @@ export const TopBar = forwardRef<
         onNewScore: () => void;
         notifications: { unread: number; items: NotificationItem[] };
     }
->(function TopBar({ user, crumb, search, onSearch, onNewScore, notifications }, searchRef) {
+>(function TopBar(
+    { user, crumb, search, onSearch, onNewScore, notifications },
+    searchRef,
+) {
     return (
         <header className="flex h-15 w-full shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
             <div className="flex items-center gap-5">
-                <Link href="/dashboard" className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
+                <Link
+                    href="/dashboard"
+                    className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                >
                     <Logo />
                 </Link>
                 <div className="h-5 w-px shrink-0 bg-rule" />
-                <nav className="flex items-center gap-2" aria-label="Breadcrumb">
-                    <Link href="/dashboard" className="text-[13.5px] leading-4.5 text-pencil hover:text-ink">
+                <nav
+                    className="flex items-center gap-2"
+                    aria-label="Breadcrumb"
+                >
+                    <Link
+                        href="/dashboard"
+                        className="text-[13.5px] leading-4.5 text-pencil hover:text-ink"
+                    >
                         Workspace
                     </Link>
-                    <span className="text-[13.5px] leading-4.5 text-faint">/</span>
-                    <span className="text-[13.5px] leading-4.5 font-medium text-ink">{crumb}</span>
+                    <span className="text-[13.5px] leading-4.5 text-faint">
+                        /
+                    </span>
+                    <span className="text-[13.5px] leading-4.5 font-medium text-ink">
+                        {crumb}
+                    </span>
                 </nav>
             </div>
 
@@ -54,7 +70,10 @@ export const TopBar = forwardRef<
                     </kbd>
                 </label>
 
-                <NotificationsMenu unread={notifications.unread} items={notifications.items} />
+                <NotificationsMenu
+                    unread={notifications.unread}
+                    items={notifications.items}
+                />
 
                 <button
                     type="button"
@@ -62,7 +81,9 @@ export const TopBar = forwardRef<
                     className="flex h-9 shrink-0 items-center gap-1.75 rounded-full bg-ink px-4 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
                 >
                     <PlusIcon />
-                    <span className="text-[13.5px] leading-4.5 font-semibold">New score</span>
+                    <span className="text-[13.5px] leading-4.5 font-semibold">
+                        New score
+                    </span>
                 </button>
 
                 <AvatarMenu user={user} />

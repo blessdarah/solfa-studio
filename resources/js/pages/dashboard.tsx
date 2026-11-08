@@ -17,7 +17,11 @@ import type { DashboardProps, Publishing, ScoreSummary } from '@/types';
 function greeting(): string {
     const hour = new Date().getHours();
 
-    return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    return hour < 12
+        ? 'Good morning'
+        : hour < 17
+          ? 'Good afternoon'
+          : 'Good evening';
 }
 
 /**
@@ -35,7 +39,10 @@ export default function Dashboard(props: DashboardProps) {
     const searchRef = useRef<HTMLInputElement>(null);
     const [details, setDetails] = useState<ScoreSummary | null>(null);
     const [deleting, setDeleting] = useState<ScoreSummary | null>(null);
-    const [publishing, setPublishing] = useState<{ score: ScoreSummary; state: Publishing } | null>(null);
+    const [publishing, setPublishing] = useState<{
+        score: ScoreSummary;
+        state: Publishing;
+    } | null>(null);
 
     const actions: ScoreActions = {
         onDetails: setDetails,
@@ -55,11 +62,15 @@ export default function Dashboard(props: DashboardProps) {
         }
 
         const timer = window.setTimeout(() => {
-            router.get(dashboardUrl({ ...filters, q: query, all: false }), {}, {
-                preserveState: true,
-                preserveScroll: true,
-                replace: true,
-            });
+            router.get(
+                dashboardUrl({ ...filters, q: query, all: false }),
+                {},
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                },
+            );
         }, 300);
 
         return () => window.clearTimeout(timer);
@@ -68,7 +79,10 @@ export default function Dashboard(props: DashboardProps) {
     // ⌘K / Ctrl-K jumps to search.
     useEffect(() => {
         const onKey = (event: KeyboardEvent) => {
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                event.key.toLowerCase() === 'k'
+            ) {
                 event.preventDefault();
                 searchRef.current?.focus();
                 searchRef.current?.select();
@@ -97,11 +111,11 @@ export default function Dashboard(props: DashboardProps) {
               ? 'Drag a score onto Archive to put it away.'
               : filters.view === 'deleted'
                 ? 'Nothing here. Deleted scores wait 30 days before they go for good.'
-              : filters.view === 'collection'
-                ? 'Drag scores onto this collection to add them.'
-                : filters.view === 'shared'
-                  ? 'Scores other people share with you appear here.'
-                  : 'No scores yet. Start one with New score.';
+                : filters.view === 'collection'
+                  ? 'Drag scores onto this collection to add them.'
+                  : filters.view === 'shared'
+                    ? 'Scores other people share with you appear here.'
+                    : 'No scores yet. Start one with New score.';
 
     return (
         <>
@@ -126,7 +140,11 @@ export default function Dashboard(props: DashboardProps) {
                             nav={props.nav}
                             collections={props.collections}
                             filters={filters}
-                            onScan={() => setToast('Scanning a paper score is coming to the web soon.')}
+                            onScan={() =>
+                                setToast(
+                                    'Scanning a paper score is coming to the web soon.',
+                                )
+                            }
                         />
                     </div>
 
@@ -138,7 +156,9 @@ export default function Dashboard(props: DashboardProps) {
                             <h1 className="font-display text-[56px] leading-14 font-extrabold tracking-[-0.035em] text-ink">
                                 {props.heading}
                             </h1>
-                            <div className="text-[13.5px] leading-5 text-pencil">{summary}</div>
+                            <div className="text-[13.5px] leading-5 text-pencil">
+                                {summary}
+                            </div>
                         </div>
 
                         <ScoreLedger
@@ -165,21 +185,37 @@ export default function Dashboard(props: DashboardProps) {
                 </div>
             </div>
 
-            <NewScoreModal open={newScore} onClose={() => setNewScore(false)} user={user} />
+            <NewScoreModal
+                open={newScore}
+                onClose={() => setNewScore(false)}
+                user={user}
+            />
             <RehearsalModal
                 open={planning}
                 onClose={() => setPlanning(false)}
                 scores={props.choices}
                 ensemble={props.workspace.name}
             />
-            {details && <EditDetailsDialog score={details} onClose={() => setDetails(null)} />}
-            {deleting && <DeleteScoreDialog score={deleting} onClose={() => setDeleting(null)} />}
+            {details && (
+                <EditDetailsDialog
+                    score={details}
+                    onClose={() => setDetails(null)}
+                />
+            )}
+            {deleting && (
+                <DeleteScoreDialog
+                    score={deleting}
+                    onClose={() => setDeleting(null)}
+                />
+            )}
             {publishing && (
                 <PublishDialog
                     scoreId={publishing.score.id}
                     title={publishing.score.title}
                     publishing={publishing.state}
-                    onChange={(state) => setPublishing({ ...publishing, state })}
+                    onChange={(state) =>
+                        setPublishing({ ...publishing, state })
+                    }
                     onClose={() => {
                         setPublishing(null);
                         router.reload({ only: ['scores', 'kinds', 'counts'] });

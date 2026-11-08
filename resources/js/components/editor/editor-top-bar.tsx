@@ -57,7 +57,10 @@ export function EditorTopBar({
     return (
         <header className="flex h-15 shrink-0 items-center justify-between border-b border-rule bg-paper px-5">
             <div className="flex items-center gap-5">
-                <Link href="/dashboard" className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20">
+                <Link
+                    href="/dashboard"
+                    className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+                >
                     <Logo />
                 </Link>
                 <div className="text-[14px] leading-4.5 text-pencil">
@@ -66,12 +69,19 @@ export function EditorTopBar({
                     </Link>{' '}
                     / {title}
                 </div>
-                <div className="text-[13px] leading-4 text-pencil" aria-live="polite">
+                <div
+                    className="text-[13px] leading-4 text-pencil"
+                    aria-live="polite"
+                >
                     {savedLabel}
                 </div>
             </div>
 
-            <div className="flex gap-1 rounded-full bg-copy p-1" role="tablist" aria-label="Mode">
+            <div
+                className="flex gap-1 rounded-full bg-copy p-1"
+                role="tablist"
+                aria-label="Mode"
+            >
                 {MODES.map((item) => {
                     const active = item.mode === mode;
                     const available = item.mode !== 'check';
@@ -83,11 +93,19 @@ export function EditorTopBar({
                             role="tab"
                             aria-selected={active}
                             disabled={!available}
-                            title={available ? undefined : 'Check mode is on its way'}
-                            onClick={() => available && onMode(item.mode as EditorMode)}
+                            title={
+                                available
+                                    ? undefined
+                                    : 'Check mode is on its way'
+                            }
+                            onClick={() =>
+                                available && onMode(item.mode as EditorMode)
+                            }
                             className={cn(
                                 'flex h-8 items-center rounded-full px-4.5 text-[14px] leading-4.5 outline-none focus-visible:ring-2 focus-visible:ring-ink/20',
-                                active ? 'bg-ink font-semibold text-paper' : 'font-medium text-pencil',
+                                active
+                                    ? 'bg-ink font-semibold text-paper'
+                                    : 'font-medium text-pencil',
                                 available && !active && 'hover:text-ink',
                             )}
                         >
@@ -115,7 +133,13 @@ export function EditorTopBar({
                     title="Print (⌘ P)"
                     className="flex size-9 items-center justify-center rounded-full bg-copy text-ink outline-none hover:bg-rule focus-visible:ring-2 focus-visible:ring-ink/20"
                 >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        aria-hidden="true"
+                    >
                         <path
                             d="M4.5 6V2.5h7V6M4.5 11.5h-1A1.5 1.5 0 0 1 2 10V7.5A1.5 1.5 0 0 1 3.5 6h9A1.5 1.5 0 0 1 14 7.5V10a1.5 1.5 0 0 1-1.5 1.5h-1M4.5 9.5h7v4h-7z"
                             stroke="currentColor"
@@ -130,8 +154,12 @@ export function EditorTopBar({
                         onClick={onShare}
                         className="flex h-9 items-center rounded-full bg-ink px-4 text-paper outline-none focus-visible:ring-2 focus-visible:ring-ink/30 focus-visible:ring-offset-2"
                     >
-                        {published && <span className="mr-1.5 size-2 rounded-full bg-[#5CC27A]" />}
-                        <span className="text-[14px] leading-4.5 font-semibold">{published ? 'Published' : 'Publish'}</span>
+                        {published && (
+                            <span className="mr-1.5 size-2 rounded-full bg-[#5CC27A]" />
+                        )}
+                        <span className="text-[14px] leading-4.5 font-semibold">
+                            {published ? 'Published' : 'Publish'}
+                        </span>
                     </button>
                 )}
                 <AvatarMenu user={user} size="lg" />

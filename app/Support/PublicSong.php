@@ -60,12 +60,11 @@ final class PublicSong
      */
     public static function voices(ScoreDocument $document): array
     {
-        return collect($document->parts)
+        return array_values(collect($document->parts)
             ->filter(fn (Part $part) => collect($part->bars)->contains(fn (Bar $bar) => $bar->notes !== []))
             ->map(fn (Part $part) => $part->id->value)
             ->sortBy(fn (string $voice) => array_search($voice, array_map(fn (Voice $v) => $v->value, Voice::cases()), true))
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -75,7 +74,7 @@ final class PublicSong
      */
     public static function verses(ScoreDocument $document): array
     {
-        return collect($document->verses)->map(function ($verse): array {
+        return array_values(collect($document->verses)->map(function ($verse): array {
             $text = '';
 
             foreach ($verse->syllables as $syllable) {
@@ -83,7 +82,7 @@ final class PublicSong
             }
 
             return ['label' => $verse->label, 'text' => trim(preg_replace('/\s+/', ' ', $text) ?? '')];
-        })->filter(fn (array $verse) => $verse['text'] !== '')->values()->all();
+        })->filter(fn (array $verse) => $verse['text'] !== '')->all());
     }
 
     public static function firstWords(ScoreDocument $document, int $words = 7): ?string

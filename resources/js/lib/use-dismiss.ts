@@ -2,7 +2,11 @@ import { useEffect } from 'react';
 import type { RefObject } from 'react';
 
 /** Close a popover on outside click or Escape. */
-export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, close: () => void): void {
+export function useDismiss(
+    ref: RefObject<HTMLElement | null>,
+    open: boolean,
+    close: () => void,
+): void {
     useEffect(() => {
         if (!open) {
             return;
